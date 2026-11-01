@@ -51,6 +51,9 @@ interface GymDao {
     @Update
     suspend fun updateSession(session: WorkoutSessionEntity)
 
+    @Delete
+    suspend fun deleteSession(session: WorkoutSessionEntity)
+
     @Query("SELECT * FROM workout_session WHERE sessionId = :sessionId LIMIT 1")
     suspend fun getSessionById(sessionId: Long): WorkoutSessionEntity?
 

@@ -77,5 +77,17 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
+
+    androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
 }
 
