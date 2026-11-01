@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mulocoolbot.gymtracker.util.StreakEvaluatorTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-01T19:11:59" hostname="192.168.1.39" time="0.028">
+  <properties/>
+  <testcase name="evaluateOnAppLaunch_missingOneScheduledWorkoutDayIncrementsMissedAndKeepsStreak" classname="com.mulocoolbot.gymtracker.util.StreakEvaluatorTest" time="0.026"/>
+  <testcase name="evaluateOnAppLaunch_scheduledRestDaysDoNotIncrementConsecutiveMissed" classname="com.mulocoolbot.gymtracker.util.StreakEvaluatorTest" time="0.0"/>
+  <testcase name="evaluateOnAppLaunch_missingTwoScheduledWorkoutDaysResetsStreakToZero" classname="com.mulocoolbot.gymtracker.util.StreakEvaluatorTest" time="0.001"/>
+  <testcase name="onWorkoutCompleted_incrementsStreakOncePerDayAndResetsMissedCounter" classname="com.mulocoolbot.gymtracker.util.StreakEvaluatorTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
