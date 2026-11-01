@@ -1,3 +1,0 @@
-com.mulocoolbot.gymtracker.test
-style WhiteBackgroundDialogTheme
-style WhiteBackgroundTheme
