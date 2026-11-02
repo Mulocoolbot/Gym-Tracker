@@ -1,5 +1,7 @@
 package com.mulocoolbot.gymtracker.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,11 +32,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +59,9 @@ import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -62,8 +69,51 @@ fun SettingsScreen(
     userProfile: UserProfileEntity?,
     onUpdateProfile: (name: String, weightKg: Double, heightCm: Double) -> Unit,
     onToggleGoogleLink: (defaultEmail: String) -> Unit,
-    onToggleEmailLink: (emailInput: String) -> Unit
+    onToggleEmailLink: (emailInput: String) -> Unit,
+    onExportBackup: suspend () -> String = { "" },
+    onImportBackup: suspend (String) -> Boolean = { false }
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val json = onExportBackup()
+                if (json.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.openOutputStream(uri)?.use { stream ->
+                                stream.write(json.toByteArray(Charsets.UTF_8))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val jsonContent = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)
+                            ?.bufferedReader(Charsets.UTF_8)
+                            ?.use { it.readText() }
+                    }.getOrNull()
+                }
+                if (!jsonContent.isNullOrBlank()) {
+                    onImportBackup(jsonContent)
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,6 +141,13 @@ fun SettingsScreen(
             authSession = authSession,
             onToggleGoogleLink = onToggleGoogleLink,
             onToggleEmailLink = onToggleEmailLink
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        DataBackupCard(
+            onExportClick = { exportLauncher.launch("gym_tracker_backup.json") },
+            onImportClick = { importLauncher.launch(arrayOf("application/json")) }
         )
     }
 }
@@ -402,6 +459,73 @@ private fun ProviderStatusBox(
     }
 }
 
+@Composable
+private fun DataBackupCard(
+    onExportClick: () -> Unit,
+    onImportClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = "Data",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onExportClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = VoltAccent,
+                        contentColor = OnVolt
+                    )
+                ) {
+                    Text(
+                        text = "Export",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = OnVolt,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onImportClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, CardBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = InputSurface,
+                        contentColor = TextPrimary
+                    )
+                ) {
+                    Text(
+                        text = "Import",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun formatMetricNumber(value: Double): String {
     return if (value % 1.0 == 0.0) {
         value.toInt().toString()
@@ -409,4 +533,3 @@ private fun formatMetricNumber(value: Double): String {
         "%.1f".format(Locale.US, value)
     }
 }
-

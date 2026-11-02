@@ -134,6 +134,14 @@ class AuthOnboardingViewModel(
         }
     }
 
+    suspend fun exportBackupJson(): String {
+        return repository.exportBackupJson()
+    }
+
+    suspend fun importBackupJson(jsonString: String): Boolean {
+        return repository.importBackupJson(jsonString)
+    }
+
     companion object {
         fun resolveDestination(
             session: AuthSession,

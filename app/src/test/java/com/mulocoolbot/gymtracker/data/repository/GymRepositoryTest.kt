@@ -187,6 +187,10 @@ private class FakeGymDao : GymDao {
         return historyState.map { map -> map.values.sortedByDescending { it.lastUsedMillis } }
     }
 
+    override suspend fun getExerciseHistory(): List<ExerciseHistoryEntity> {
+        return historyState.value.values.sortedByDescending { it.lastUsedMillis }
+    }
+
     override suspend fun upsertExerciseHistory(exercise: ExerciseHistoryEntity) {
         val updated = historyState.value.toMutableMap()
         updated[exercise.normalizedName] = exercise
@@ -208,6 +212,16 @@ private class FakeGymDao : GymDao {
         return id
     }
 
+    override suspend fun insertSessions(sessions: List<WorkoutSessionEntity>) {
+        val updated = sessionsState.value.toMutableMap()
+        sessions.forEach { session ->
+            val id = if (session.sessionId == 0L) nextSessionId++ else session.sessionId
+            updated[id] = session.copy(sessionId = id)
+            if (id >= nextSessionId) nextSessionId = id + 1
+        }
+        sessionsState.value = updated
+    }
+
     override suspend fun updateSession(session: WorkoutSessionEntity) {
         val updated = sessionsState.value.toMutableMap()
         updated[session.sessionId] = session
@@ -225,6 +239,10 @@ private class FakeGymDao : GymDao {
 
     override suspend fun getSessionById(sessionId: Long): WorkoutSessionEntity? {
         return sessionsState.value[sessionId]
+    }
+
+    override suspend fun getAllSessions(): List<WorkoutSessionEntity> {
+        return sessionsState.value.values.sortedBy { it.sessionId }
     }
 
     override fun observeSessionsByDate(dateEpochDay: Long): Flow<List<WorkoutSessionEntity>> {
@@ -320,6 +338,10 @@ private class FakeGymDao : GymDao {
         return setsState.map { map ->
             map.values.sortedBy { it.timestampMillis }
         }
+    }
+
+    override suspend fun getAllSets(): List<WorkoutSetEntity> {
+        return setsState.value.values.sortedBy { it.setId }
     }
 }
 

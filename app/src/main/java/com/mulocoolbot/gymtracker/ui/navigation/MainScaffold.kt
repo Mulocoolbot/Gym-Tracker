@@ -1,5 +1,10 @@
 package com.mulocoolbot.gymtracker.ui.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -123,6 +129,24 @@ private fun AuthenticatedMainContent(
     authViewModel: AuthOnboardingViewModel
 ) {
     val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { }
+
+    val ensureNotificationPermission = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val status = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+            if (status != PackageManager.PERMISSION_GRANTED) {
+                runCatching {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: BottomNavTab.HOME.route
@@ -177,6 +201,7 @@ private fun AuthenticatedMainContent(
                         uiState = homeState,
                         onSelectDay = homeViewModel::selectDay,
                         onStartWorkout = {
+                            ensureNotificationPermission()
                             workoutViewModel.startWorkout()
                             navigateToTab(navController, BottomNavTab.WORKOUT)
                         }
@@ -255,7 +280,9 @@ private fun AuthenticatedMainContent(
                         userProfile = authUiState.userProfile,
                         onUpdateProfile = authViewModel::onUpdateProfile,
                         onToggleGoogleLink = authViewModel::onToggleGoogleLink,
-                        onToggleEmailLink = authViewModel::onToggleEmailLink
+                        onToggleEmailLink = authViewModel::onToggleEmailLink,
+                        onExportBackup = authViewModel::exportBackupJson,
+                        onImportBackup = authViewModel::importBackupJson
                     )
                 }
             }

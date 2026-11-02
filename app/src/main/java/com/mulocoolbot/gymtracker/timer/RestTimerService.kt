@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.mulocoolbot.gymtracker.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -189,7 +190,7 @@ class RestTimerService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID_COUNTDOWN)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification_timer)
             .setContentTitle("Rest Timer")
             .setContentText(RestTimerController.formatMMSS(remainingSeconds))
             .setOngoing(true)
@@ -211,7 +212,7 @@ class RestTimerService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID_ALARM)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification_timer)
             .setContentTitle("Rest Finished")
             .setContentText("00:00")
             .setPriority(NotificationCompat.PRIORITY_HIGH)

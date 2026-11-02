@@ -39,6 +39,9 @@ interface GymDao {
     @Query("SELECT * FROM exercise_history ORDER BY lastUsedMillis DESC")
     fun observeExerciseHistory(): Flow<List<ExerciseHistoryEntity>>
 
+    @Query("SELECT * FROM exercise_history ORDER BY lastUsedMillis DESC")
+    suspend fun getExerciseHistory(): List<ExerciseHistoryEntity>
+
     @Upsert
     suspend fun upsertExerciseHistory(exercise: ExerciseHistoryEntity)
 
@@ -48,6 +51,9 @@ interface GymDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: WorkoutSessionEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessions(sessions: List<WorkoutSessionEntity>)
+
     @Update
     suspend fun updateSession(session: WorkoutSessionEntity)
 
@@ -56,6 +62,9 @@ interface GymDao {
 
     @Query("SELECT * FROM workout_session WHERE sessionId = :sessionId LIMIT 1")
     suspend fun getSessionById(sessionId: Long): WorkoutSessionEntity?
+
+    @Query("SELECT * FROM workout_session ORDER BY sessionId ASC")
+    suspend fun getAllSessions(): List<WorkoutSessionEntity>
 
     @Query("SELECT * FROM workout_session WHERE dateEpochDay = :dateEpochDay ORDER BY startTimeMillis DESC")
     fun observeSessionsByDate(dateEpochDay: Long): Flow<List<WorkoutSessionEntity>>
@@ -99,5 +108,8 @@ interface GymDao {
 
     @Query("SELECT * FROM workout_set ORDER BY timestampMillis ASC")
     fun observeAllSets(): Flow<List<WorkoutSetEntity>>
+
+    @Query("SELECT * FROM workout_set ORDER BY setId ASC")
+    suspend fun getAllSets(): List<WorkoutSetEntity>
 }
 

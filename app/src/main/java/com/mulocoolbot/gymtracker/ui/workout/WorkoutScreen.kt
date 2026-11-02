@@ -1,5 +1,10 @@
 package com.mulocoolbot.gymtracker.ui.workout
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,9 +36,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.mulocoolbot.gymtracker.data.local.ExerciseHistoryEntity
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerState
@@ -63,10 +70,32 @@ fun WorkoutScreen(
     onAddSet: () -> Unit,
     onSkipOrDismissRest: () -> Unit
 ) {
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { }
+
+    val requestNotificationPermissionIfNeeded = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permissionState = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+            if (permissionState != PackageManager.PERMISSION_GRANTED) {
+                runCatching {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
+
     if (!uiState.isWorkoutActive) {
         IdleWorkoutContent(
             completedSets = uiState.todayCompletedSets,
-            onStartWorkout = onStartWorkout
+            onStartWorkout = {
+                requestNotificationPermissionIfNeeded()
+                onStartWorkout()
+            }
         )
     } else {
         ActiveWorkoutContent(
@@ -76,7 +105,10 @@ fun WorkoutScreen(
             onWeightChange = onWeightChange,
             onRepsChange = onRepsChange,
             onSelectSetType = onSelectSetType,
-            onAddSet = onAddSet,
+            onAddSet = {
+                requestNotificationPermissionIfNeeded()
+                onAddSet()
+            },
             onSkipOrDismissRest = onSkipOrDismissRest
         )
     }

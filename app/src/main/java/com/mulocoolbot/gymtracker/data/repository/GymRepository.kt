@@ -2,6 +2,7 @@ package com.mulocoolbot.gymtracker.data.repository
 
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.auth.SessionPreferences
+import com.mulocoolbot.gymtracker.data.backup.GymBackupManager
 import com.mulocoolbot.gymtracker.data.local.ExerciseHistoryEntity
 import com.mulocoolbot.gymtracker.data.local.GymDao
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
@@ -204,6 +205,18 @@ class GymRepository(
             )
             dao.upsertUserProfile(updatedProfile)
         }
+    }
+
+    suspend fun exportBackupJson(): String {
+        return GymBackupManager.exportToJson(dao)
+    }
+
+    suspend fun importBackupJson(jsonString: String): Boolean {
+        val success = GymBackupManager.importFromJson(dao, jsonString)
+        if (success && dao.getUserProfile() != null) {
+            sessionPreferences.markProfileCompleted(true)
+        }
+        return success
     }
 
     private suspend fun syncAuthFlagsToProfile() {
