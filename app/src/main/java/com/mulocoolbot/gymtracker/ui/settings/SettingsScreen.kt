@@ -146,7 +146,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         DataBackupCard(
-            onExportClick = { exportLauncher.launch("gym_tracker_backup.json") },
+            onExportClick = { exportLauncher.launch("mfit_backup.json") },
             onImportClick = { importLauncher.launch(arrayOf("application/json")) }
         )
     }

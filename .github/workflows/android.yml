@@ -1,4 +1,4 @@
-name: Android CI & Release
+name: MFit CI & Release
 
 on:
   push:
@@ -36,20 +36,29 @@ jobs:
       - name: Build Debug and Release APKs
         run: ./gradlew assembleDebug assembleRelease
 
+      - name: Prepare APK filenames
+        run: |
+          cp app/build/outputs/apk/release/*-release.apk app/build/outputs/apk/release/MFit.apk
+          for f in app/build/outputs/apk/debug/*-debug.apk; do
+            if [ "$f" != "app/build/outputs/apk/debug/MFit-debug.apk" ]; then
+              cp "$f" app/build/outputs/apk/debug/MFit-debug.apk
+            fi
+          done
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: gym-tracker-apks
+          name: MFit-APKs
           path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/MFit.apk
+            app/build/outputs/apk/debug/MFit-debug.apk
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: MFit ${{ github.ref_name }}
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/MFit.apk
+            app/build/outputs/apk/debug/MFit-debug.apk
           generate_release_notes: true
-

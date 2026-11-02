@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GymTracker"
+rootProject.name = "MFit"
 include(":app")
 

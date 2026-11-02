@@ -1,8 +1,8 @@
-# <img src="docs/assets/ic_gymtracker_mark.svg" width="36" height="36" align="top" alt="Gym Tracker" /> Gym Tracker
+# <img src="docs/assets/ic_gymtracker_mark.svg" width="36" height="36" align="top" alt="MFit" /> MFit
 
 ## Overview
 
-Gym Tracker is an offline-first Android workout tracker written in Kotlin with Jetpack Compose (Material 3). It provides fast set logging, custom weekly split scheduling, background rest timers, and local strength progression analytics with zero network dependency required for daily use.
+MFit is an offline-first Android workout tracker written in Kotlin with Jetpack Compose (Material 3). It provides fast set logging, custom weekly split scheduling, background rest timers, and local strength progression analytics with zero network dependency required for daily use.
 
 ## Core Features
 

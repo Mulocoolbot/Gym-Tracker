@@ -23,6 +23,10 @@ android {
         }
     }
 
+    base {
+        archivesName.set("MFit")
+    }
+
     val keystorePath = System.getenv("KEYSTORE_PATH")
     val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
     val keyAliasName = System.getenv("KEY_ALIAS")
