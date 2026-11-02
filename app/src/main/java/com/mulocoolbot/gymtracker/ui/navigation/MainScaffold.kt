@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +44,7 @@ import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerService
 import com.mulocoolbot.gymtracker.ui.auth.AppStartDestination
+import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingUiState
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import com.mulocoolbot.gymtracker.ui.auth.ProfileSetupScreen
 import com.mulocoolbot.gymtracker.ui.auth.SignInScreen
@@ -53,6 +53,9 @@ import com.mulocoolbot.gymtracker.ui.home.HomeScreen
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanScreen
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanViewModel
+import com.mulocoolbot.gymtracker.ui.settings.SettingsScreen
+import com.mulocoolbot.gymtracker.ui.stats.StatsScreen
+import com.mulocoolbot.gymtracker.ui.stats.StatsViewModel
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.CardBorder
 import com.mulocoolbot.gymtracker.ui.theme.CardSurface
@@ -62,6 +65,8 @@ import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
+import com.mulocoolbot.gymtracker.ui.workout.WorkoutScreen
+import com.mulocoolbot.gymtracker.ui.workout.WorkoutViewModel
 
 @Composable
 fun MainScaffold(
@@ -102,7 +107,9 @@ fun MainScaffold(
         AppStartDestination.MAIN_HOME -> {
             AuthenticatedMainContent(
                 repository = repository,
-                timerController = timerController
+                timerController = timerController,
+                authUiState = authUiState,
+                authViewModel = authViewModel
             )
         }
     }
@@ -111,7 +118,9 @@ fun MainScaffold(
 @Composable
 private fun AuthenticatedMainContent(
     repository: GymRepository,
-    timerController: RestTimerController
+    timerController: RestTimerController,
+    authUiState: AuthOnboardingUiState,
+    authViewModel: AuthOnboardingViewModel
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
@@ -125,6 +134,14 @@ private fun AuthenticatedMainContent(
     val planViewModel: WorkoutPlanViewModel = viewModel(
         factory = WorkoutPlanViewModel.factory(repository)
     )
+    val workoutViewModel: WorkoutViewModel = viewModel(
+        factory = WorkoutViewModel.factory(repository, timerController)
+    )
+    val statsViewModel: StatsViewModel = viewModel(
+        factory = StatsViewModel.factory(repository)
+    )
+
+    val homeState by homeViewModel.uiState.collectAsState()
 
     Scaffold(
         containerColor = AppBackground,
@@ -156,11 +173,13 @@ private fun AuthenticatedMainContent(
                 modifier = Modifier.weight(1f)
             ) {
                 composable(BottomNavTab.HOME.route) {
-                    val homeState by homeViewModel.uiState.collectAsState()
                     HomeScreen(
                         uiState = homeState,
                         onSelectDay = homeViewModel::selectDay,
-                        onStartWorkout = { navigateToTab(navController, BottomNavTab.WORKOUT) }
+                        onStartWorkout = {
+                            workoutViewModel.startWorkout()
+                            navigateToTab(navController, BottomNavTab.WORKOUT)
+                        }
                     )
                 }
 
@@ -170,26 +189,74 @@ private fun AuthenticatedMainContent(
                         uiState = planState,
                         onOpenWizard = planViewModel::openWizard,
                         onToggleDay = planViewModel::toggleDaySelection,
-                        onNextStep = planViewModel::proceedToScheduleStep,
-                        onBackToSelectDays = planViewModel::returnToSelectDaysStep,
+                        onNextStep = planViewModel::goToNextStep,
+                        onBackToSelectDays = planViewModel::goToPreviousStep,
                         onUpdateDraftName = planViewModel::updateDraftPlanName,
                         onRequestCancel = planViewModel::requestCancelWizard,
                         onDismissDiscardDialog = planViewModel::dismissDiscardDialog,
                         onConfirmDiscard = planViewModel::confirmDiscardWizard,
-                        onSaveSchedule = planViewModel::saveSchedule
+                        onSaveSchedule = planViewModel::saveWorkoutPlan
                     )
                 }
 
                 composable(BottomNavTab.WORKOUT.route) {
-                    PlaceholderTabScreen(title = "Workout")
+                    val workoutState by workoutViewModel.uiState.collectAsState()
+                    val activePlanName = if (homeState.selectedDayPlan.isRestDay) {
+                        "Workout"
+                    } else {
+                        homeState.selectedDayPlan.planName
+                    }
+
+                    WorkoutScreen(
+                        uiState = workoutState,
+                        onStartWorkout = workoutViewModel::startWorkout,
+                        onStopWorkout = {
+                            workoutViewModel.stopWorkout(planName = activePlanName) {
+                                runCatching { RestTimerService.skipTimer(context) }
+                            }
+                        },
+                        onExerciseNameChange = workoutViewModel::updateExerciseInput,
+                        onWeightChange = workoutViewModel::updateWeightInput,
+                        onRepsChange = workoutViewModel::updateRepsInput,
+                        onSelectSetType = workoutViewModel::selectSetType,
+                        onAddSet = {
+                            workoutViewModel.addSet { durationMillis ->
+                                runCatching {
+                                    RestTimerService.startTimer(context, durationMillis)
+                                }
+                            }
+                        },
+                        onSkipOrDismissRest = {
+                            val wasRinging = timerState.alarmRinging
+                            workoutViewModel.skipOrDismissRestTimer {
+                                runCatching {
+                                    if (wasRinging) {
+                                        RestTimerService.dismissAlarm(context)
+                                    } else {
+                                        RestTimerService.skipTimer(context)
+                                    }
+                                }
+                            }
+                        }
+                    )
                 }
 
                 composable(BottomNavTab.STATS.route) {
-                    PlaceholderTabScreen(title = "Stats")
+                    val statsState by statsViewModel.uiState.collectAsState()
+                    StatsScreen(
+                        uiState = statsState,
+                        onSelectExercise = statsViewModel::selectExercise
+                    )
                 }
 
                 composable(BottomNavTab.SETTINGS.route) {
-                    PlaceholderTabScreen(title = "Settings")
+                    SettingsScreen(
+                        authSession = authUiState.authSession,
+                        userProfile = authUiState.userProfile,
+                        onUpdateProfile = authViewModel::onUpdateProfile,
+                        onToggleGoogleLink = authViewModel::onToggleGoogleLink,
+                        onToggleEmailLink = authViewModel::onToggleEmailLink
+                    )
                 }
             }
         }
@@ -335,23 +402,6 @@ private fun WorkoutCenterTabButton(
     }
 }
 
-@Composable
-private fun PlaceholderTabScreen(title: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary
-        )
-    }
-}
-
 private fun navigateToTab(
     navController: NavHostController,
     tab: BottomNavTab
@@ -364,4 +414,3 @@ private fun navigateToTab(
         restoreState = true
     }
 }
-

@@ -96,5 +96,8 @@ interface GymDao {
 
     @Query("SELECT DISTINCT exerciseName FROM workout_set ORDER BY exerciseName ASC")
     fun observeLoggedExerciseNames(): Flow<List<String>>
+
+    @Query("SELECT * FROM workout_set ORDER BY timestampMillis ASC")
+    fun observeAllSets(): Flow<List<WorkoutSetEntity>>
 }
 

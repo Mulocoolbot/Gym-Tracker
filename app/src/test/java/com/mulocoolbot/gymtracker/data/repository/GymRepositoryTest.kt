@@ -315,5 +315,11 @@ private class FakeGymDao : GymDao {
                 .sorted()
         }
     }
+
+    override fun observeAllSets(): Flow<List<WorkoutSetEntity>> {
+        return setsState.map { map ->
+            map.values.sortedBy { it.timestampMillis }
+        }
+    }
 }
 

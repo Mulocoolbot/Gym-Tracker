@@ -293,5 +293,11 @@ internal class InMemoryTestGymDao : GymDao {
             map.values.map { it.exerciseName }.distinct().sorted()
         }
     }
+
+    override fun observeAllSets(): Flow<List<WorkoutSetEntity>> {
+        return setsState.map { map ->
+            map.values.sortedBy { it.timestampMillis }
+        }
+    }
 }
 

@@ -39,6 +39,10 @@ class GymRepository(
         return dao.observeLoggedExerciseNames()
     }
 
+    fun observeAllSets(): Flow<List<WorkoutSetEntity>> {
+        return dao.observeAllSets()
+    }
+
     suspend fun signInWithGoogle(email: String) {
         sessionPreferences.signInWithGoogle(email)
         syncAuthFlagsToProfile()
