@@ -108,6 +108,7 @@ fun MainScaffold(
                 onClearError = authViewModel::clearAuthError
             )
         }
+
         AppStartDestination.PROFILE_SETUP -> {
             val defaultName = authUiState.userProfile?.name
                 ?: authUiState.authSession.userEmail?.substringBefore("@")
@@ -118,6 +119,7 @@ fun MainScaffold(
                 onCompleteProfile = authViewModel::onSubmitProfile
             )
         }
+
         AppStartDestination.MAIN_HOME -> {
             AuthenticatedMainContent(
                 repository = repository,
