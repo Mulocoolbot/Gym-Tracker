@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -55,6 +57,7 @@ import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import com.mulocoolbot.gymtracker.ui.auth.ProfileSetupScreen
 import com.mulocoolbot.gymtracker.ui.auth.SignInScreen
 import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
+import com.mulocoolbot.gymtracker.ui.components.SystemPermissionsRequester
 import com.mulocoolbot.gymtracker.ui.home.HomeScreen
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanScreen
@@ -93,11 +96,16 @@ fun MainScaffold(
         return
     }
 
+    SystemPermissionsRequester()
+
     when (authUiState.destination) {
         AppStartDestination.SIGN_IN -> {
             SignInScreen(
-                onGoogleSignIn = { authViewModel.onGoogleSignIn("athlete@gmail.com") },
-                onEmailSignIn = authViewModel::onEmailSignIn
+                onGoogleSignIn = authViewModel::onGoogleSignIn,
+                onCreateAccount = authViewModel::onCreateAccount,
+                onSignInWithEmailPassword = authViewModel::onSignInWithEmailPassword,
+                authError = authUiState.authError,
+                onClearError = authViewModel::clearAuthError
             )
         }
         AppStartDestination.PROFILE_SETUP -> {
@@ -168,6 +176,10 @@ private fun AuthenticatedMainContent(
     val homeState by homeViewModel.uiState.collectAsState()
 
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBackground)
+            .systemBarsPadding(),
         containerColor = AppBackground,
         bottomBar = {
             GymBottomBar(
@@ -185,7 +197,7 @@ private fun AuthenticatedMainContent(
             if (timerState.alarmRinging) {
                 AlarmFinishedBanner(
                     onDismiss = {
-                        runCatching { RestTimerService.dismissAlarm(context) }
+                        runCatching { RestTimerService.stopRestTimer(context) }
                         timerController.dismissOrSkip()
                     }
                 )
@@ -237,7 +249,7 @@ private fun AuthenticatedMainContent(
                         onStartWorkout = workoutViewModel::startWorkout,
                         onStopWorkout = {
                             workoutViewModel.stopWorkout(planName = activePlanName) {
-                                runCatching { RestTimerService.skipTimer(context) }
+                                runCatching { RestTimerService.stopRestTimer(context) }
                             }
                         },
                         onExerciseNameChange = workoutViewModel::updateExerciseInput,
@@ -247,19 +259,14 @@ private fun AuthenticatedMainContent(
                         onAddSet = {
                             workoutViewModel.addSet { durationMillis ->
                                 runCatching {
-                                    RestTimerService.startTimer(context, durationMillis)
+                                    RestTimerService.startRestTimer(context, durationMillis)
                                 }
                             }
                         },
                         onSkipOrDismissRest = {
-                            val wasRinging = timerState.alarmRinging
                             workoutViewModel.skipOrDismissRestTimer {
                                 runCatching {
-                                    if (wasRinging) {
-                                        RestTimerService.dismissAlarm(context)
-                                    } else {
-                                        RestTimerService.skipTimer(context)
-                                    }
+                                    RestTimerService.stopRestTimer(context)
                                 }
                             }
                         }
@@ -354,6 +361,7 @@ private fun GymBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically

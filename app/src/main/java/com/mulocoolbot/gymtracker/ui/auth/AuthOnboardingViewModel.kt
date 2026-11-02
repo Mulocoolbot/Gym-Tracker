@@ -7,6 +7,7 @@ import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import java.time.LocalDate
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,38 +25,81 @@ data class AuthOnboardingUiState(
     val isLoading: Boolean = true,
     val authSession: AuthSession = AuthSession(),
     val userProfile: UserProfileEntity? = null,
-    val destination: AppStartDestination = AppStartDestination.SIGN_IN
+    val destination: AppStartDestination = AppStartDestination.SIGN_IN,
+    val authError: String? = null
 )
 
 class AuthOnboardingViewModel(
     private val repository: GymRepository
 ) : ViewModel() {
 
+    private val authErrorFlow = MutableStateFlow<String?>(null)
+
     val uiState: StateFlow<AuthOnboardingUiState> = combine(
         repository.authSession,
-        repository.userProfile
-    ) { session, profile ->
+        repository.userProfile,
+        authErrorFlow
+    ) { session, profile, error ->
         AuthOnboardingUiState(
             isLoading = false,
             authSession = session,
             userProfile = profile,
-            destination = resolveDestination(session, profile)
+            destination = resolveDestination(session, profile),
+            authError = error
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000L),
-        initialValue = AuthOnboardingUiState()
+        started = SharingStarted.Eagerly,
+        initialValue = AuthOnboardingUiState(isLoading = true)
     )
 
     init {
         viewModelScope.launch {
-            repository.evaluateStreakOnLaunch(LocalDate.now().toEpochDay())
+            val initialSession = repository.authSession.first()
+            if (initialSession.isAuthenticated && initialSession.isProfileCompleted) {
+                repository.evaluateStreakOnLaunch(LocalDate.now().toEpochDay())
+            }
         }
+    }
+
+    fun onCreateAccount(email: String, password: String) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || password.length < 6) {
+            authErrorFlow.value = "Enter a valid email and 6+ character password"
+            return
+        }
+        authErrorFlow.value = null
+        viewModelScope.launch {
+            val registered = repository.registerWithEmailPassword(cleanEmail, password)
+            if (!registered) {
+                authErrorFlow.value = "Could not create account"
+            }
+        }
+    }
+
+    fun onSignInWithEmailPassword(email: String, password: String) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || password.length < 6) {
+            authErrorFlow.value = "Enter your email and password"
+            return
+        }
+        authErrorFlow.value = null
+        viewModelScope.launch {
+            val success = repository.loginWithEmailPassword(cleanEmail, password)
+            if (!success) {
+                authErrorFlow.value = "Invalid email or password"
+            }
+        }
+    }
+
+    fun clearAuthError() {
+        authErrorFlow.value = null
     }
 
     fun onGoogleSignIn(email: String) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
+        authErrorFlow.value = null
         viewModelScope.launch {
             repository.signInWithGoogle(cleanEmail)
         }
@@ -64,6 +108,7 @@ class AuthOnboardingViewModel(
     fun onEmailSignIn(email: String) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
+        authErrorFlow.value = null
         viewModelScope.launch {
             repository.signInWithEmail(cleanEmail)
         }
@@ -90,15 +135,16 @@ class AuthOnboardingViewModel(
         }
     }
 
-    fun onToggleGoogleLink(defaultEmail: String) {
+    fun onToggleGoogleLink(googleEmailInput: String) {
         viewModelScope.launch {
             val session = repository.authSession.first()
             if (session.isGoogleLinked) {
                 repository.unlinkGoogle()
             } else {
-                val targetEmail = defaultEmail.trim()
-                    .ifEmpty { session.userEmail ?: "athlete@gmail.com" }
-                repository.signInWithGoogle(targetEmail)
+                val targetEmail = googleEmailInput.trim()
+                if (targetEmail.isNotEmpty()) {
+                    repository.signInWithGoogle(targetEmail)
+                }
             }
         }
     }
@@ -110,7 +156,6 @@ class AuthOnboardingViewModel(
                 repository.unlinkEmail()
             } else {
                 val targetEmail = emailInput.trim()
-                    .ifEmpty { session.googleEmail.orEmpty() }
                 if (targetEmail.isNotEmpty()) {
                     repository.signInWithEmail(targetEmail)
                 }
@@ -164,4 +209,3 @@ class AuthOnboardingViewModel(
         }
     }
 }
-

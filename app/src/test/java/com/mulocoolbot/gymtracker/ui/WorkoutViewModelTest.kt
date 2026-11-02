@@ -81,7 +81,7 @@ class WorkoutViewModelTest {
         viewModel.updateRepsInput("10")
 
         viewModel.selectSetType(WorkoutUiState.SET_TYPE_WARMUP)
-        viewModel.addSet { duration -> triggeredDurations.add(duration) }
+        viewModel.addSet(onTriggerServiceTimer = { duration -> triggeredDurations.add(duration) })
 
         assertEquals(60_000L, triggeredDurations.last())
         assertEquals(60, timerController.state.value.totalSeconds)
@@ -90,25 +90,26 @@ class WorkoutViewModelTest {
         viewModel.updateWeightInput("80")
         viewModel.updateRepsInput("8")
         viewModel.selectSetType(WorkoutUiState.SET_TYPE_NORMAL)
-        viewModel.addSet { duration -> triggeredDurations.add(duration) }
+        viewModel.addSet(onTriggerServiceTimer = { duration -> triggeredDurations.add(duration) })
 
         assertEquals(120_000L, triggeredDurations.last())
         assertEquals(120, timerController.state.value.totalSeconds)
         assertEquals("Set 1", viewModel.uiState.value.activeSessionSets.last().setLabel)
         assertEquals(2, viewModel.uiState.value.nextNormalSetNumber)
 
-        viewModel.addSet { duration -> triggeredDurations.add(duration) }
+        viewModel.addSet(onTriggerServiceTimer = { duration -> triggeredDurations.add(duration) })
 
         assertEquals(120_000L, triggeredDurations.last())
         assertEquals("Set 2", viewModel.uiState.value.activeSessionSets.last().setLabel)
         assertEquals(3, viewModel.uiState.value.nextNormalSetNumber)
 
         viewModel.selectSetType(WorkoutUiState.SET_TYPE_FINAL)
-        viewModel.addSet { duration -> triggeredDurations.add(duration) }
+        viewModel.addSet(onTriggerServiceTimer = { duration -> triggeredDurations.add(duration) })
 
         assertEquals(180_000L, triggeredDurations.last())
         assertEquals(180, timerController.state.value.totalSeconds)
         assertEquals("Final Set", viewModel.uiState.value.activeSessionSets.last().setLabel)
+        assertEquals(listOf(60_000L, 120_000L, 120_000L, 180_000L), triggeredDurations)
 
         viewModel.stopWorkout()
     }

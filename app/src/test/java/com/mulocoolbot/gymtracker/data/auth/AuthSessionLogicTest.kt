@@ -1,6 +1,7 @@
 package com.mulocoolbot.gymtracker.data.auth
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.ui.auth.AppStartDestination
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import java.io.File
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -25,6 +27,23 @@ class AuthSessionLogicTest {
             File(tempFolder.newFolder(), "test_auth_session.preferences_pb")
         }
         return SessionPreferences(dataStore)
+    }
+
+    @Test
+    fun freshAuthSession_isUnauthenticatedAndRoutesStrictlyToSignInNeverMainHome() = runTest {
+        val prefs = createSessionPreferences(backgroundScope)
+        val freshSession = prefs.authSessionFlow.first()
+
+        assertFalse(freshSession.isAuthenticated)
+        assertFalse(freshSession.isProfileCompleted)
+        assertEquals(
+            AppStartDestination.SIGN_IN,
+            AuthOnboardingViewModel.resolveDestination(freshSession, null)
+        )
+        assertNotEquals(
+            AppStartDestination.MAIN_HOME,
+            AuthOnboardingViewModel.resolveDestination(freshSession, null)
+        )
     }
 
     @Test
@@ -101,6 +120,58 @@ class AuthSessionLogicTest {
         assertEquals(
             AppStartDestination.SIGN_IN,
             AuthOnboardingViewModel.resolveDestination(finalSession, null)
+        )
+    }
+
+    @Test
+    fun registerAndLoginWithEmailPassword_persistsCredentialsAndRestoresSessionAfterLogout() = runTest {
+        val prefs = createSessionPreferences(backgroundScope)
+
+        val registered = prefs.registerWithEmailPassword("user@mfit.app", "secret123")
+        val initialSession = prefs.authSessionFlow.first()
+
+        assertTrue(registered)
+        assertTrue(initialSession.isAuthenticated)
+        assertFalse(initialSession.isProfileCompleted)
+        assertEquals(
+            AppStartDestination.PROFILE_SETUP,
+            AuthOnboardingViewModel.resolveDestination(initialSession, null)
+        )
+
+        val completedProfile = UserProfileEntity(
+            uid = initialSession.uid,
+            name = "Alex",
+            birthDateMillis = 946684800000L,
+            heightCm = 178.0,
+            weightKg = 74.0,
+            isGoogleLinked = false,
+            isEmailLinked = true
+        )
+        prefs.markProfileCompleted(true)
+        val afterProfileSetup = prefs.authSessionFlow.first()
+        assertEquals(
+            AppStartDestination.MAIN_HOME,
+            AuthOnboardingViewModel.resolveDestination(afterProfileSetup, completedProfile)
+        )
+
+        prefs.unlinkEmail()
+        val loggedOutSession = prefs.authSessionFlow.first()
+        assertFalse(loggedOutSession.isAuthenticated)
+        assertEquals(
+            AppStartDestination.SIGN_IN,
+            AuthOnboardingViewModel.resolveDestination(loggedOutSession, completedProfile)
+        )
+
+        assertFalse(prefs.loginWithEmailPassword("user@mfit.app", "wrongpass"))
+        assertTrue(prefs.loginWithEmailPassword("user@mfit.app", "secret123"))
+
+        val restoredSession = prefs.authSessionFlow.first()
+        assertTrue(restoredSession.isAuthenticated)
+        assertTrue(restoredSession.isProfileCompleted)
+        assertEquals(initialSession.uid, restoredSession.uid)
+        assertEquals(
+            AppStartDestination.MAIN_HOME,
+            AuthOnboardingViewModel.resolveDestination(restoredSession, completedProfile)
         )
     }
 }

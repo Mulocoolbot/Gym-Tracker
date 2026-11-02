@@ -27,7 +27,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
@@ -348,9 +352,7 @@ private fun AccountInfoCard(
     onToggleGoogleLink: (defaultEmail: String) -> Unit,
     onToggleEmailLink: (emailInput: String) -> Unit
 ) {
-    val fallbackEmail = authSession.userEmail
-        ?: authSession.googleEmail
-        ?: "athlete@gmail.com"
+    var pendingLinkProvider by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -370,12 +372,18 @@ private fun AccountInfoCard(
             ProviderStatusBox(
                 providerName = "Google",
                 linkedAddress = if (authSession.isGoogleLinked) {
-                    authSession.googleEmail ?: fallbackEmail
+                    authSession.googleEmail ?: "Linked"
                 } else {
                     "Not linked"
                 },
                 isLinked = authSession.isGoogleLinked,
-                onActionClick = { onToggleGoogleLink(fallbackEmail) }
+                onActionClick = {
+                    if (authSession.isGoogleLinked) {
+                        onToggleGoogleLink("")
+                    } else {
+                        pendingLinkProvider = "Google"
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -383,13 +391,113 @@ private fun AccountInfoCard(
             ProviderStatusBox(
                 providerName = "Email",
                 linkedAddress = if (authSession.isEmailLinked) {
-                    authSession.userEmail ?: fallbackEmail
+                    authSession.userEmail ?: "Linked"
                 } else {
                     "Not linked"
                 },
                 isLinked = authSession.isEmailLinked,
-                onActionClick = { onToggleEmailLink(fallbackEmail) }
+                onActionClick = {
+                    if (authSession.isEmailLinked) {
+                        onToggleEmailLink("")
+                    } else {
+                        pendingLinkProvider = "Email"
+                    }
+                }
             )
+        }
+    }
+
+    if (pendingLinkProvider != null) {
+        val provider = pendingLinkProvider!!
+        LinkProviderEmailDialog(
+            providerName = provider,
+            onDismiss = { pendingLinkProvider = null },
+            onConfirmEmail = { enteredEmail ->
+                pendingLinkProvider = null
+                if (provider == "Google") {
+                    onToggleGoogleLink(enteredEmail)
+                } else {
+                    onToggleEmailLink(enteredEmail)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun LinkProviderEmailDialog(
+    providerName: String,
+    onDismiss: () -> Unit,
+    onConfirmEmail: (String) -> Unit
+) {
+    var emailInput by remember { mutableStateOf("") }
+    val isValid = emailInput.trim().contains("@")
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, CardBorder)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Link $providerName",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = emailInput,
+                    onValueChange = { emailInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(text = "Email address", color = TextMuted) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedContainerColor = InputSurface,
+                        unfocusedContainerColor = InputSurface,
+                        focusedBorderColor = VoltAccent,
+                        unfocusedBorderColor = CardBorder,
+                        cursorColor = VoltAccent
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = "Cancel", color = TextMuted)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirmEmail(emailInput.trim()) },
+                        enabled = isValid,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = VoltAccent,
+                            contentColor = OnVolt,
+                            disabledContainerColor = InputSurface,
+                            disabledContentColor = TextMuted
+                        )
+                    ) {
+                        Text(
+                            text = "Link",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = OnVolt,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

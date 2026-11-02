@@ -44,13 +44,55 @@ class GymRepository(
         return dao.observeAllSets()
     }
 
+    suspend fun registerWithEmailPassword(email: String, password: String): Boolean {
+        val registered = sessionPreferences.registerWithEmailPassword(email, password)
+        if (!registered) return false
+
+        val session = sessionPreferences.authSessionFlow.first()
+        val existingProfile = dao.getUserProfile()
+        if (existingProfile != null && existingProfile.uid != session.uid) {
+            dao.clearUserProfile()
+            dao.upsertWorkoutPlans(buildDefaultWeeklyPlan())
+            sessionPreferences.markProfileCompleted(false)
+        } else if (existingProfile == null) {
+            sessionPreferences.markProfileCompleted(false)
+        } else {
+            syncAuthFlagsToProfile()
+        }
+        return true
+    }
+
+    suspend fun loginWithEmailPassword(email: String, password: String): Boolean {
+        val success = sessionPreferences.loginWithEmailPassword(email, password)
+        if (!success) return false
+
+        val existingProfile = dao.getUserProfile()
+        if (existingProfile != null) {
+            sessionPreferences.markProfileCompleted(true)
+            syncAuthFlagsToProfile()
+        } else {
+            sessionPreferences.markProfileCompleted(false)
+        }
+        return true
+    }
+
     suspend fun signInWithGoogle(email: String) {
         sessionPreferences.signInWithGoogle(email)
+        val existingProfile = dao.getUserProfile()
+        val session = sessionPreferences.authSessionFlow.first()
+        if (existingProfile != null && existingProfile.uid == session.uid) {
+            sessionPreferences.markProfileCompleted(true)
+        }
         syncAuthFlagsToProfile()
     }
 
     suspend fun signInWithEmail(email: String) {
         sessionPreferences.signInWithEmail(email)
+        val existingProfile = dao.getUserProfile()
+        val session = sessionPreferences.authSessionFlow.first()
+        if (existingProfile != null && existingProfile.uid == session.uid) {
+            sessionPreferences.markProfileCompleted(true)
+        }
         syncAuthFlagsToProfile()
     }
 

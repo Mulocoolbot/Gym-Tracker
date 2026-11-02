@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.mulocoolbot.gymtracker.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -258,26 +259,31 @@ class RestTimerService : Service() {
         private const val SKIP_REQUEST_CODE = 2002
         private const val DISMISS_REQUEST_CODE = 2003
 
-        fun startTimer(context: Context, durationMillis: Long) {
+        fun startRestTimer(context: Context, durationMillis: Long) {
             val intent = Intent(context, RestTimerService::class.java).apply {
                 action = ACTION_START_TIMER
                 putExtra(EXTRA_DURATION_MILLIS, durationMillis)
             }
-            context.startForegroundService(intent)
+            ContextCompat.startForegroundService(context, intent)
         }
 
-        fun skipTimer(context: Context) {
-            val intent = Intent(context, RestTimerService::class.java).apply {
-                action = ACTION_SKIP_TIMER
-            }
-            context.startService(intent)
-        }
-
-        fun dismissAlarm(context: Context) {
+        fun stopRestTimer(context: Context) {
             val intent = Intent(context, RestTimerService::class.java).apply {
                 action = ACTION_DISMISS_ALARM
             }
-            context.startService(intent)
+            runCatching { context.startService(intent) }
+        }
+
+        fun startTimer(context: Context, durationMillis: Long) {
+            startRestTimer(context, durationMillis)
+        }
+
+        fun skipTimer(context: Context) {
+            stopRestTimer(context)
+        }
+
+        fun dismissAlarm(context: Context) {
+            stopRestTimer(context)
         }
     }
 }
