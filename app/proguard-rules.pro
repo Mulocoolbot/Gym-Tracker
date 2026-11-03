@@ -1,3 +1,8 @@
 -keep class com.mulocoolbot.gymtracker.data.local.** { *; }
 -keep class com.mulocoolbot.gymtracker.data.backup.** { *; }
-
+-keep class javax.mail.** { *; }
+-keep class com.sun.mail.** { *; }
+-keep class javax.activation.** { *; }
+-dontwarn java.awt.**
+-dontwarn javax.activation.**
+-dontwarn org.apache.harmony.**

@@ -51,7 +51,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
+import com.mulocoolbot.gymtracker.data.auth.EmailOtpManager
+import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
+import com.mulocoolbot.gymtracker.data.auth.OtpRequestResult
+import com.mulocoolbot.gymtracker.data.auth.OtpVerifyResult
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
+import com.mulocoolbot.gymtracker.ui.auth.SixDigitOtpInputField
+import com.mulocoolbot.gymtracker.ui.auth.rememberGoogleAuthLauncher
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.CardBorder
 import com.mulocoolbot.gymtracker.ui.theme.CardSurface
@@ -352,7 +358,13 @@ private fun AccountInfoCard(
     onToggleGoogleLink: (defaultEmail: String) -> Unit,
     onToggleEmailLink: (emailInput: String) -> Unit
 ) {
-    var pendingLinkProvider by remember { mutableStateOf<String?>(null) }
+    var showEmailOtpLinkDialog by remember { mutableStateOf(false) }
+
+    val launchGoogleLink = rememberGoogleAuthLauncher(
+        onSuccess = { selectedEmail, _ ->
+            onToggleGoogleLink(selectedEmail)
+        }
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -381,7 +393,7 @@ private fun AccountInfoCard(
                     if (authSession.isGoogleLinked) {
                         onToggleGoogleLink("")
                     } else {
-                        pendingLinkProvider = "Google"
+                        launchGoogleLink()
                     }
                 }
             )
@@ -400,38 +412,37 @@ private fun AccountInfoCard(
                     if (authSession.isEmailLinked) {
                         onToggleEmailLink("")
                     } else {
-                        pendingLinkProvider = "Email"
+                        showEmailOtpLinkDialog = true
                     }
                 }
             )
         }
     }
 
-    if (pendingLinkProvider != null) {
-        val provider = pendingLinkProvider!!
-        LinkProviderEmailDialog(
-            providerName = provider,
-            onDismiss = { pendingLinkProvider = null },
-            onConfirmEmail = { enteredEmail ->
-                pendingLinkProvider = null
-                if (provider == "Google") {
-                    onToggleGoogleLink(enteredEmail)
-                } else {
-                    onToggleEmailLink(enteredEmail)
-                }
+    if (showEmailOtpLinkDialog) {
+        LinkEmailOtpDialog(
+            onDismiss = { showEmailOtpLinkDialog = false },
+            onVerifiedEmail = { verifiedEmail ->
+                showEmailOtpLinkDialog = false
+                onToggleEmailLink(verifiedEmail)
             }
         )
     }
 }
 
 @Composable
-private fun LinkProviderEmailDialog(
-    providerName: String,
+private fun LinkEmailOtpDialog(
     onDismiss: () -> Unit,
-    onConfirmEmail: (String) -> Unit
+    onVerifiedEmail: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val otpManager = remember { EmailOtpManager() }
+
     var emailInput by remember { mutableStateOf("") }
-    val isValid = emailInput.trim().contains("@")
+    var otpCodeInput by remember { mutableStateOf("") }
+    var isOtpStep by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -442,31 +453,59 @@ private fun LinkProviderEmailDialog(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "Link $providerName",
+                    text = if (isOtpStep) "Verify Email" else "Link Email",
                     style = MaterialTheme.typography.titleLarge,
                     color = TextPrimary
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value = emailInput,
-                    onValueChange = { emailInput = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "Email address", color = TextMuted) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = InputSurface,
-                        unfocusedContainerColor = InputSurface,
-                        focusedBorderColor = VoltAccent,
-                        unfocusedBorderColor = CardBorder,
-                        cursorColor = VoltAccent
+                if (!isOtpStep) {
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = {
+                            emailInput = it
+                            errorMessage = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(text = "Email address", color = TextMuted) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = InputSurface,
+                            unfocusedContainerColor = InputSurface,
+                            focusedBorderColor = VoltAccent,
+                            unfocusedBorderColor = CardBorder,
+                            cursorColor = VoltAccent
+                        )
                     )
-                )
+                } else {
+                    Text(
+                        text = emailInput.trim(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SixDigitOtpInputField(
+                        code = otpCodeInput,
+                        onCodeChange = {
+                            otpCodeInput = it
+                            errorMessage = null
+                        }
+                    )
+                }
+
+                if (!errorMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = errorMessage!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DangerRed
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -479,8 +518,27 @@ private fun LinkProviderEmailDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onConfirmEmail(emailInput.trim()) },
-                        enabled = isValid,
+                        onClick = {
+                            if (!isOtpStep) {
+                                val (result, code) = otpManager.generateOtp(emailInput.trim())
+                                if (result == OtpRequestResult.SENT && code != null) {
+                                    isOtpStep = true
+                                    errorMessage = null
+                                    scope.launch {
+                                        EmailOtpSender.sendOtpEmail(context, emailInput.trim(), code)
+                                    }
+                                } else {
+                                    errorMessage = "Invalid email address"
+                                }
+                            } else {
+                                when (otpManager.verifyOtp(emailInput.trim(), otpCodeInput)) {
+                                    OtpVerifyResult.SUCCESS -> onVerifiedEmail(emailInput.trim())
+                                    OtpVerifyResult.EXPIRED_CODE -> errorMessage = "Verification code expired"
+                                    else -> errorMessage = "Invalid verification code"
+                                }
+                            }
+                        },
+                        enabled = if (!isOtpStep) emailInput.isNotBlank() else otpCodeInput.length == 6,
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = VoltAccent,
@@ -490,7 +548,7 @@ private fun LinkProviderEmailDialog(
                         )
                     ) {
                         Text(
-                            text = "Link",
+                            text = if (!isOtpStep) "Send Code" else "Verify",
                             style = MaterialTheme.typography.labelLarge,
                             color = OnVolt,
                             fontWeight = FontWeight.Bold

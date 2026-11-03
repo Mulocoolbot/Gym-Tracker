@@ -82,6 +82,7 @@ fun MainScaffold(
     repository: GymRepository,
     timerController: RestTimerController = RestTimerController.instance
 ) {
+    val context = LocalContext.current
     val authViewModel: AuthOnboardingViewModel = viewModel(
         factory = AuthOnboardingViewModel.factory(repository)
     )
@@ -101,16 +102,32 @@ fun MainScaffold(
     when (authUiState.destination) {
         AppStartDestination.SIGN_IN -> {
             SignInScreen(
-                onGoogleSignIn = authViewModel::onGoogleSignIn,
-                onCreateAccount = authViewModel::onCreateAccount,
-                onSignInWithEmailPassword = authViewModel::onSignInWithEmailPassword,
-                authError = authUiState.authError,
+                authStep = authUiState.authStep,
+                pendingEmail = authUiState.pendingEmail,
+                otpErrorMessage = authUiState.otpErrorMessage,
+                resendCountdownSeconds = authUiState.resendCountdownSeconds,
+                onGoogleAuthenticated = authViewModel::onGoogleAuthenticated,
+                onSendEmailOtp = { email ->
+                    authViewModel.requestEmailOtp(context = context, emailInput = email)
+                },
+                onVerifyEmailOtp = { otpCode ->
+                    authViewModel.verifyEmailOtp(otpInput = otpCode)
+                },
+                onResendEmailOtp = {
+                    authViewModel.requestEmailOtp(
+                        context = context,
+                        emailInput = authUiState.pendingEmail,
+                        isResend = true
+                    )
+                },
+                onBackToEmailInput = authViewModel::backToEmailInput,
                 onClearError = authViewModel::clearAuthError
             )
         }
 
         AppStartDestination.PROFILE_SETUP -> {
             val defaultName = authUiState.userProfile?.name
+                ?: authUiState.suggestedDisplayName
                 ?: authUiState.authSession.userEmail?.substringBefore("@")
                 ?: authUiState.authSession.googleEmail?.substringBefore("@")
                 ?: ""

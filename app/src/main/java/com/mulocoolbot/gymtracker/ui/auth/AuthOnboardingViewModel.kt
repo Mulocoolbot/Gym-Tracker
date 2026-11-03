@@ -1,18 +1,31 @@
 package com.mulocoolbot.gymtracker.ui.auth
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
+import com.mulocoolbot.gymtracker.data.auth.EmailOtpManager
+import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
+import com.mulocoolbot.gymtracker.data.auth.OtpRequestResult
+import com.mulocoolbot.gymtracker.data.auth.OtpVerifyResult
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class AppStartDestination {
@@ -21,31 +34,60 @@ enum class AppStartDestination {
     MAIN_HOME
 }
 
+enum class EmailAuthStep {
+    EMAIL_INPUT,
+    OTP_VERIFICATION
+}
+
 data class AuthOnboardingUiState(
     val isLoading: Boolean = true,
     val authSession: AuthSession = AuthSession(),
     val userProfile: UserProfileEntity? = null,
     val destination: AppStartDestination = AppStartDestination.SIGN_IN,
-    val authError: String? = null
+    val authStep: EmailAuthStep = EmailAuthStep.EMAIL_INPUT,
+    val pendingEmail: String = "",
+    val otpErrorMessage: String? = null,
+    val resendCountdownSeconds: Int = 0,
+    val suggestedDisplayName: String? = null,
+    val authError: String? = otpErrorMessage
+)
+
+private data class OtpFlowInternalState(
+    val authStep: EmailAuthStep = EmailAuthStep.EMAIL_INPUT,
+    val pendingEmail: String = "",
+    val otpErrorMessage: String? = null,
+    val resendCountdownSeconds: Int = 0,
+    val suggestedDisplayName: String? = null
 )
 
 class AuthOnboardingViewModel(
-    private val repository: GymRepository
+    private val repository: GymRepository,
+    val otpManager: EmailOtpManager = EmailOtpManager()
 ) : ViewModel() {
 
-    private val authErrorFlow = MutableStateFlow<String?>(null)
+    private val otpFlowState = MutableStateFlow(OtpFlowInternalState())
+    private val countdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var countdownJob: Job? = null
+
+    var lastGeneratedOtpCode: String? = null
+        private set
 
     val uiState: StateFlow<AuthOnboardingUiState> = combine(
         repository.authSession,
         repository.userProfile,
-        authErrorFlow
-    ) { session, profile, error ->
+        otpFlowState
+    ) { session, profile, otpState ->
         AuthOnboardingUiState(
             isLoading = false,
             authSession = session,
             userProfile = profile,
             destination = resolveDestination(session, profile),
-            authError = error
+            authStep = otpState.authStep,
+            pendingEmail = otpState.pendingEmail,
+            otpErrorMessage = otpState.otpErrorMessage,
+            resendCountdownSeconds = otpState.resendCountdownSeconds,
+            suggestedDisplayName = otpState.suggestedDisplayName,
+            authError = otpState.otpErrorMessage
         )
     }.stateIn(
         scope = viewModelScope,
@@ -62,53 +104,157 @@ class AuthOnboardingViewModel(
         }
     }
 
+    fun requestEmailOtp(
+        context: Context? = null,
+        emailInput: String,
+        isResend: Boolean = false,
+        currentMillis: Long = System.currentTimeMillis()
+    ) {
+        val cleanEmail = emailInput.trim()
+        val (result, code) = otpManager.generateOtp(
+            email = cleanEmail,
+            currentMillis = currentMillis,
+            forceResend = isResend
+        )
+
+        when (result) {
+            OtpRequestResult.INVALID_EMAIL -> {
+                otpFlowState.update { it.copy(otpErrorMessage = "Invalid email address") }
+            }
+            OtpRequestResult.COOLDOWN_ACTIVE -> {
+                val remaining = otpManager.remainingCooldownSeconds(currentMillis)
+                otpFlowState.update {
+                    it.copy(
+                        otpErrorMessage = "Please wait ${remaining}s before resending",
+                        resendCountdownSeconds = remaining
+                    )
+                }
+            }
+            OtpRequestResult.SENT -> {
+                lastGeneratedOtpCode = code
+                otpFlowState.update {
+                    it.copy(
+                        authStep = EmailAuthStep.OTP_VERIFICATION,
+                        pendingEmail = cleanEmail,
+                        otpErrorMessage = null,
+                        resendCountdownSeconds = 60
+                    )
+                }
+                startResendCountdown()
+                if (context != null && code != null) {
+                    viewModelScope.launch {
+                        EmailOtpSender.sendOtpEmail(context, cleanEmail, code)
+                    }
+                }
+            }
+        }
+    }
+
+    fun verifyEmailOtp(
+        otpInput: String,
+        currentMillis: Long = System.currentTimeMillis()
+    ) {
+        val targetEmail = otpFlowState.value.pendingEmail
+        val verifyResult = otpManager.verifyOtp(
+            email = targetEmail,
+            inputCode = otpInput,
+            currentMillis = currentMillis
+        )
+
+        when (verifyResult) {
+            OtpVerifyResult.SUCCESS -> {
+                countdownJob?.cancel()
+                otpFlowState.update {
+                    it.copy(
+                        authStep = EmailAuthStep.EMAIL_INPUT,
+                        otpErrorMessage = null,
+                        resendCountdownSeconds = 0
+                    )
+                }
+                viewModelScope.launch {
+                    repository.signInWithEmail(targetEmail)
+                }
+            }
+            OtpVerifyResult.EXPIRED_CODE -> {
+                otpFlowState.update { it.copy(otpErrorMessage = "Verification code expired") }
+            }
+            OtpVerifyResult.INVALID_FORMAT,
+            OtpVerifyResult.INVALID_CODE,
+            OtpVerifyResult.NO_PENDING_OTP -> {
+                otpFlowState.update { it.copy(otpErrorMessage = "Invalid verification code") }
+            }
+        }
+    }
+
+    fun backToEmailInput() {
+        countdownJob?.cancel()
+        otpFlowState.update {
+            it.copy(
+                authStep = EmailAuthStep.EMAIL_INPUT,
+                otpErrorMessage = null,
+                resendCountdownSeconds = 0
+            )
+        }
+    }
+
+    fun onGoogleAuthenticated(email: String, displayName: String? = null) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty()) return
+        otpFlowState.update {
+            it.copy(
+                otpErrorMessage = null,
+                suggestedDisplayName = displayName?.trim()?.takeIf { name -> name.isNotEmpty() }
+            )
+        }
+        viewModelScope.launch {
+            repository.signInWithGoogle(cleanEmail)
+        }
+    }
+
     fun onCreateAccount(email: String, password: String) {
         val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || password.length < 6) {
-            authErrorFlow.value = "Enter a valid email and 6+ character password"
+        if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
+            otpFlowState.update {
+                it.copy(otpErrorMessage = "Enter a valid email and 6+ character password")
+            }
             return
         }
-        authErrorFlow.value = null
+        otpFlowState.update { it.copy(otpErrorMessage = null) }
         viewModelScope.launch {
             val registered = repository.registerWithEmailPassword(cleanEmail, password)
             if (!registered) {
-                authErrorFlow.value = "Could not create account"
+                otpFlowState.update { it.copy(otpErrorMessage = "Could not create account") }
             }
         }
     }
 
     fun onSignInWithEmailPassword(email: String, password: String) {
         val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || password.length < 6) {
-            authErrorFlow.value = "Enter your email and password"
+        if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
+            otpFlowState.update { it.copy(otpErrorMessage = "Enter your email and password") }
             return
         }
-        authErrorFlow.value = null
+        otpFlowState.update { it.copy(otpErrorMessage = null) }
         viewModelScope.launch {
             val success = repository.loginWithEmailPassword(cleanEmail, password)
             if (!success) {
-                authErrorFlow.value = "Invalid email or password"
+                otpFlowState.update { it.copy(otpErrorMessage = "Invalid email or password") }
             }
         }
     }
 
     fun clearAuthError() {
-        authErrorFlow.value = null
+        otpFlowState.update { it.copy(otpErrorMessage = null) }
     }
 
     fun onGoogleSignIn(email: String) {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty()) return
-        authErrorFlow.value = null
-        viewModelScope.launch {
-            repository.signInWithGoogle(cleanEmail)
-        }
+        onGoogleAuthenticated(email = email, displayName = null)
     }
 
     fun onEmailSignIn(email: String) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
-        authErrorFlow.value = null
+        otpFlowState.update { it.copy(otpErrorMessage = null) }
         viewModelScope.launch {
             repository.signInWithEmail(cleanEmail)
         }
@@ -185,6 +331,24 @@ class AuthOnboardingViewModel(
 
     suspend fun importBackupJson(jsonString: String): Boolean {
         return repository.importBackupJson(jsonString)
+    }
+
+    private fun startResendCountdown() {
+        countdownJob?.cancel()
+        countdownJob = countdownScope.launch {
+            var remaining = 60
+            while (isActive && remaining > 0) {
+                delay(1_000L)
+                remaining--
+                otpFlowState.update { it.copy(resendCountdownSeconds = remaining) }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        countdownJob?.cancel()
+        countdownScope.cancel()
+        super.onCleared()
     }
 
     companion object {
