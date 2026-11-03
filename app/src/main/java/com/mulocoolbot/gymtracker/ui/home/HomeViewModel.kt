@@ -17,16 +17,24 @@ import kotlinx.coroutines.flow.stateIn
 data class WeekDayItem(
     val dayOfWeek: Int,
     val shortName: String,
-    val dateNumber: String,
+    val dayNumber: String,
     val isRestDay: Boolean
-)
+) {
+    val dateNumber: String
+        get() = dayNumber
+}
 
 data class HomeUiState(
-    val selectedDayOfWeek: Int = 0,
     val formattedHeaderDate: String = "",
+    val selectedDayOfWeek: Int = 0,
     val weekDays: List<WeekDayItem> = emptyList(),
     val currentStreak: Int = 0,
     val todayCalories: Int = 0,
+    val calorieProgress: Float = if (todayCalories > 0) {
+        (todayCalories / 600f).coerceIn(0.08f, 1f)
+    } else {
+        0f
+    },
     val selectedDayPlan: WorkoutPlanEntity = WorkoutPlanEntity(
         dayOfWeek = 0,
         isRestDay = true,
@@ -58,7 +66,7 @@ class HomeViewModel(
             WeekDayItem(
                 dayOfWeek = dayIndex,
                 shortName = SHORT_DAY_NAMES[dayIndex],
-                dateNumber = "%02d".format(Locale.US, date.dayOfMonth),
+                dayNumber = "%02d".format(Locale.US, date.dayOfMonth),
                 isRestDay = dayPlan?.isRestDay ?: true
             )
         }
@@ -69,12 +77,19 @@ class HomeViewModel(
             planName = "Rest Day"
         )
 
+        val progress = if (calories > 0) {
+            (calories / 600f).coerceIn(0.08f, 1f)
+        } else {
+            0f
+        }
+
         HomeUiState(
-            selectedDayOfWeek = selectedDay,
             formattedHeaderDate = selectedDate.format(HEADER_DATE_FORMATTER),
+            selectedDayOfWeek = selectedDay,
             weekDays = weekDays,
             currentStreak = profile?.currentStreak ?: 0,
             todayCalories = calories,
+            calorieProgress = progress,
             selectedDayPlan = activePlan
         )
     }.stateIn(
@@ -103,4 +118,3 @@ class HomeViewModel(
         }
     }
 }
-

@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +15,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,7 +59,11 @@ import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingUiState
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import com.mulocoolbot.gymtracker.ui.auth.ProfileSetupScreen
 import com.mulocoolbot.gymtracker.ui.auth.SignInScreen
+import com.mulocoolbot.gymtracker.ui.components.CalendarPlanIcon
 import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
+import com.mulocoolbot.gymtracker.ui.components.HomeIcon
+import com.mulocoolbot.gymtracker.ui.components.SettingsSlidersIcon
+import com.mulocoolbot.gymtracker.ui.components.StatsBarIcon
 import com.mulocoolbot.gymtracker.ui.components.SystemPermissionsRequester
 import com.mulocoolbot.gymtracker.ui.home.HomeScreen
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
@@ -372,32 +379,56 @@ private fun GymBottomBar(
     currentRoute: String,
     onSelectTab: (BottomNavTab) -> Unit
 ) {
-    Surface(
-        color = CardSurface,
-        border = BorderStroke(1.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        Row(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .height(72.dp),
+            shape = RoundedCornerShape(36.dp),
+            color = CardSurface,
+            border = BorderStroke(1.dp, CardBorder)
         ) {
-            BottomNavTab.entries.forEach { tab ->
-                val isSelected = currentRoute == tab.route
-                if (tab == BottomNavTab.WORKOUT) {
-                    WorkoutCenterTabButton(
-                        isSelected = isSelected,
-                        onClick = { onSelectTab(tab) }
-                    )
-                } else {
-                    StandardTabItem(
-                        label = tab.label,
-                        isSelected = isSelected,
-                        onClick = { onSelectTab(tab) }
-                    )
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BottomNavTab.entries.forEach { tab ->
+                    val isSelected = currentRoute == tab.route
+                    when (tab) {
+                        BottomNavTab.HOME -> StandardTabItem(
+                            icon = HomeIcon,
+                            contentDescription = tab.label,
+                            isSelected = isSelected,
+                            onClick = { onSelectTab(tab) }
+                        )
+                        BottomNavTab.PLAN -> StandardTabItem(
+                            icon = CalendarPlanIcon,
+                            contentDescription = tab.label,
+                            isSelected = isSelected,
+                            onClick = { onSelectTab(tab) }
+                        )
+                        BottomNavTab.WORKOUT -> WorkoutCenterTabButton(
+                            onClick = { onSelectTab(tab) }
+                        )
+                        BottomNavTab.STATS -> StandardTabItem(
+                            icon = StatsBarIcon,
+                            contentDescription = tab.label,
+                            isSelected = isSelected,
+                            onClick = { onSelectTab(tab) }
+                        )
+                        BottomNavTab.SETTINGS -> StandardTabItem(
+                            icon = SettingsSlidersIcon,
+                            contentDescription = tab.label,
+                            isSelected = isSelected,
+                            onClick = { onSelectTab(tab) }
+                        )
+                    }
                 }
             }
         }
@@ -406,51 +437,47 @@ private fun GymBottomBar(
 
 @Composable
 private fun StandardTabItem(
-    label: String,
+    icon: ImageVector,
+    contentDescription: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
+    val backgroundColor = if (isSelected) InputSurface else Color.Transparent
+    val iconTint = if (isSelected) VoltAccent else TextMuted
+
+    Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(backgroundColor)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (isSelected) VoltAccent else TextMuted,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = iconTint,
+            modifier = Modifier.size(22.dp)
         )
     }
 }
 
 @Composable
 private fun WorkoutCenterTabButton(
-    isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) VoltAccent else InputSurface
-    val contentColor = if (isSelected) OnVolt else VoltAccent
-
     Box(
         modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(backgroundColor)
-            .border(
-                width = 1.dp,
-                color = if (isSelected) VoltAccent else CardBorder,
-                shape = RoundedCornerShape(14.dp)
-            )
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(VoltAccent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = DumbbellIcon,
             contentDescription = BottomNavTab.WORKOUT.label,
-            tint = contentColor,
+            tint = OnVolt,
             modifier = Modifier.size(24.dp)
         )
     }
