@@ -250,14 +250,14 @@ private fun AuthenticatedMainContent(
                     val planState by planViewModel.uiState.collectAsState()
                     WorkoutPlanScreen(
                         uiState = planState,
-                        onOpenWizard = planViewModel::openWizard,
+                        onOpenWizard = planViewModel::startCreateOrEditPlan,
                         onToggleDay = planViewModel::toggleDaySelection,
-                        onNextStep = planViewModel::goToNextStep,
-                        onBackToSelectDays = planViewModel::goToPreviousStep,
+                        onNextStep = planViewModel::goToInputPlanPage,
+                        onBackToSelectDays = planViewModel::goToEditDaysPage,
                         onUpdateDraftName = planViewModel::updateDraftPlanName,
-                        onRequestCancel = planViewModel::requestCancelWizard,
+                        onRequestCancel = planViewModel::requestCancel,
                         onDismissDiscardDialog = planViewModel::dismissDiscardDialog,
-                        onConfirmDiscard = planViewModel::confirmDiscardWizard,
+                        onConfirmDiscard = planViewModel::confirmDiscard,
                         onSaveSchedule = planViewModel::saveWorkoutPlan
                     )
                 }
@@ -442,13 +442,13 @@ private fun StandardTabItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) InputSurface else Color.Transparent
+    val backgroundColor = if (isSelected) Color(0xFF232733) else Color.Transparent
     val iconTint = if (isSelected) VoltAccent else TextMuted
 
     Box(
         modifier = Modifier
-            .size(46.dp)
-            .clip(CircleShape)
+            .size(width = 56.dp, height = 48.dp)
+            .clip(RoundedCornerShape(24.dp))
             .background(backgroundColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

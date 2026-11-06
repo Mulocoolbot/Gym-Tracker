@@ -13,18 +13,33 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class WorkoutPlanSubPage {
+    EMPTY,
+    SELECT_DAYS,
+    INPUT_PLAN,
+    SAVED
+}
+
 data class WorkoutPlanUiState(
-    val weeklyPlan: List<WorkoutPlanEntity> = defaultWeeklyPlan(),
-    val isWizardOpen: Boolean = false,
-    val wizardStep: Int = 1,
+    val subPage: WorkoutPlanSubPage = WorkoutPlanSubPage.EMPTY,
+    val hasSavedPlan: Boolean = false,
+    val savedDays: List<WorkoutPlanEntity> = defaultWeeklyPlan(),
     val selectedDays: Set<Int> = emptySet(),
     val draftPlanNames: Map<Int, String> = emptyMap(),
     val showDiscardDialog: Boolean = false
-)
+) {
+    val weeklyPlan: List<WorkoutPlanEntity>
+        get() = savedDays
 
-private data class WizardState(
-    val isOpen: Boolean = false,
-    val step: Int = 1,
+    val isWizardOpen: Boolean
+        get() = subPage == WorkoutPlanSubPage.SELECT_DAYS || subPage == WorkoutPlanSubPage.INPUT_PLAN
+
+    val wizardStep: Int
+        get() = if (subPage == WorkoutPlanSubPage.INPUT_PLAN) 2 else 1
+}
+
+private data class BuilderState(
+    val activeBuilderPage: WorkoutPlanSubPage? = null,
     val selectedDays: Set<Int> = emptySet(),
     val draftPlanNames: Map<Int, String> = emptyMap(),
     val showDiscardDialog: Boolean = false
@@ -34,32 +49,34 @@ class WorkoutPlanViewModel(
     private val repository: GymRepository
 ) : ViewModel() {
 
-    private val wizardState = MutableStateFlow(WizardState())
+    private val builderState = MutableStateFlow(BuilderState())
 
     val uiState: StateFlow<WorkoutPlanUiState> = combine(
         repository.weeklyPlan,
-        wizardState
-    ) { storedPlans, wizard ->
-        val normalizedPlans = if (storedPlans.size == 7) {
-            storedPlans.sortedBy { it.dayOfWeek }
-        } else {
-            val map = storedPlans.associateBy { it.dayOfWeek }
-            (0..6).map { day ->
-                map[day] ?: WorkoutPlanEntity(
-                    dayOfWeek = day,
-                    isRestDay = true,
-                    planName = "Rest Day"
-                )
-            }
+        builderState
+    ) { planList, builder ->
+        val planByDay = planList.associateBy { it.dayOfWeek }
+        val normalizedPlans = (0..6).map { day ->
+            planByDay[day] ?: WorkoutPlanEntity(
+                dayOfWeek = day,
+                isRestDay = true,
+                planName = "Rest Day"
+            )
+        }
+        val hasSavedPlan = normalizedPlans.any { !it.isRestDay }
+        val resolvedSubPage = when (builder.activeBuilderPage) {
+            WorkoutPlanSubPage.SELECT_DAYS,
+            WorkoutPlanSubPage.INPUT_PLAN -> builder.activeBuilderPage
+            else -> if (hasSavedPlan) WorkoutPlanSubPage.SAVED else WorkoutPlanSubPage.EMPTY
         }
 
         WorkoutPlanUiState(
-            weeklyPlan = normalizedPlans,
-            isWizardOpen = wizard.isOpen,
-            wizardStep = wizard.step,
-            selectedDays = wizard.selectedDays,
-            draftPlanNames = wizard.draftPlanNames,
-            showDiscardDialog = wizard.showDiscardDialog
+            subPage = resolvedSubPage,
+            hasSavedPlan = hasSavedPlan,
+            savedDays = normalizedPlans,
+            selectedDays = builder.selectedDays,
+            draftPlanNames = builder.draftPlanNames,
+            showDiscardDialog = builder.showDiscardDialog
         )
     }.stateIn(
         scope = viewModelScope,
@@ -67,22 +84,24 @@ class WorkoutPlanViewModel(
         initialValue = WorkoutPlanUiState()
     )
 
-    fun openWizard() {
-        val currentActive = uiState.value.weeklyPlan.filter { !it.isRestDay }
-        val initialSelected = currentActive.map { it.dayOfWeek }.toSet()
-        val initialNames = currentActive.associate { it.dayOfWeek to it.planName }
-        wizardState.value = WizardState(
-            isOpen = true,
-            step = 1,
-            selectedDays = initialSelected,
-            draftPlanNames = initialNames,
+    fun startCreateOrEditPlan() {
+        val currentState = uiState.value
+        val activeDays = if (currentState.hasSavedPlan) {
+            currentState.savedDays.filter { !it.isRestDay }
+        } else {
+            emptyList()
+        }
+        builderState.value = BuilderState(
+            activeBuilderPage = WorkoutPlanSubPage.SELECT_DAYS,
+            selectedDays = activeDays.map { it.dayOfWeek }.toSet(),
+            draftPlanNames = activeDays.associate { it.dayOfWeek to it.planName },
             showDiscardDialog = false
         )
     }
 
     fun toggleDaySelection(dayOfWeek: Int) {
         if (dayOfWeek !in 0..6) return
-        wizardState.update { current ->
+        builderState.update { current ->
             val updatedDays = if (dayOfWeek in current.selectedDays) {
                 current.selectedDays - dayOfWeek
             } else {
@@ -92,51 +111,82 @@ class WorkoutPlanViewModel(
         }
     }
 
-    fun goToNextStep() {
-        wizardState.update { current ->
-            if (current.selectedDays.isEmpty()) current else current.copy(step = 2)
+    fun goToInputPlanPage() {
+        builderState.update { current ->
+            if (current.selectedDays.isNotEmpty()) {
+                current.copy(activeBuilderPage = WorkoutPlanSubPage.INPUT_PLAN)
+            } else {
+                current
+            }
         }
     }
 
-    fun proceedToScheduleStep() {
-        goToNextStep()
-    }
-
-    fun goToPreviousStep() {
-        wizardState.update { it.copy(step = 1) }
-    }
-
-    fun returnToSelectDaysStep() {
-        goToPreviousStep()
+    fun goToEditDaysPage() {
+        builderState.update { current ->
+            current.copy(activeBuilderPage = WorkoutPlanSubPage.SELECT_DAYS)
+        }
     }
 
     fun updateDraftPlanName(dayOfWeek: Int, name: String) {
-        wizardState.update { current ->
+        if (dayOfWeek !in 0..6) return
+        builderState.update { current ->
             current.copy(draftPlanNames = current.draftPlanNames + (dayOfWeek to name))
         }
     }
 
-    fun requestCancelWizard() {
-        wizardState.update { it.copy(showDiscardDialog = true) }
+    fun requestCancel() {
+        builderState.update { current ->
+            current.copy(showDiscardDialog = true)
+        }
     }
 
     fun dismissDiscardDialog() {
-        wizardState.update { it.copy(showDiscardDialog = false) }
+        builderState.update { current ->
+            current.copy(showDiscardDialog = false)
+        }
     }
 
-    fun confirmDiscardWizard() {
-        wizardState.value = WizardState()
+    fun confirmDiscard() {
+        builderState.value = BuilderState()
     }
 
     fun saveWorkoutPlan() {
-        val current = wizardState.value
+        val current = builderState.value
         val selectedWithNames = current.selectedDays.associateWith { day ->
-            current.draftPlanNames[day]?.trim().orEmpty().ifEmpty { "Workout" }
+            current.draftPlanNames[day]?.trim().takeUnless { it.isNullOrEmpty() } ?: "Workout"
         }
         viewModelScope.launch {
             repository.saveWeeklyWorkoutPlan(selectedWithNames)
-            wizardState.value = WizardState()
+            builderState.value = BuilderState()
         }
+    }
+
+    fun openWizard() {
+        startCreateOrEditPlan()
+    }
+
+    fun goToNextStep() {
+        goToInputPlanPage()
+    }
+
+    fun proceedToScheduleStep() {
+        goToInputPlanPage()
+    }
+
+    fun goToPreviousStep() {
+        goToEditDaysPage()
+    }
+
+    fun returnToSelectDaysStep() {
+        goToEditDaysPage()
+    }
+
+    fun requestCancelWizard() {
+        requestCancel()
+    }
+
+    fun confirmDiscardWizard() {
+        confirmDiscard()
     }
 
     fun saveSchedule() {
@@ -164,4 +214,3 @@ private fun defaultWeeklyPlan(): List<WorkoutPlanEntity> {
         )
     }
 }
-

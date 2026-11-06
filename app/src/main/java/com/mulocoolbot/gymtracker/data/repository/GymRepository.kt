@@ -52,7 +52,7 @@ class GymRepository(
         val existingProfile = dao.getUserProfile()
         if (existingProfile != null && existingProfile.uid != session.uid) {
             dao.clearUserProfile()
-            dao.upsertWorkoutPlans(buildDefaultWeeklyPlan())
+            dao.upsertWorkoutPlans(buildDefaultRestWeeklyPlan())
             sessionPreferences.markProfileCompleted(false)
         } else if (existingProfile == null) {
             sessionPreferences.markProfileCompleted(false)
@@ -136,8 +136,9 @@ class GymRepository(
 
         dao.upsertUserProfile(updatedProfile)
 
-        if (dao.getWorkoutPlans().isEmpty()) {
-            dao.upsertWorkoutPlans(buildDefaultWeeklyPlan())
+        val currentPlans = dao.getWorkoutPlans()
+        if (currentPlans.isEmpty() || currentPlans.none { !it.isRestDay }) {
+            dao.upsertWorkoutPlans(buildDefaultRestWeeklyPlan())
         }
 
         sessionPreferences.markProfileCompleted(true)
@@ -273,7 +274,7 @@ class GymRepository(
         )
     }
 
-    private fun buildDefaultWeeklyPlan(): List<WorkoutPlanEntity> {
+    private fun buildDefaultRestWeeklyPlan(): List<WorkoutPlanEntity> {
         return (0..6).map { dayOfWeek ->
             WorkoutPlanEntity(
                 dayOfWeek = dayOfWeek,
@@ -283,4 +284,3 @@ class GymRepository(
         }
     }
 }
-

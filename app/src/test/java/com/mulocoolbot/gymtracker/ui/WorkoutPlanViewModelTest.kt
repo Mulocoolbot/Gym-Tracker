@@ -9,6 +9,7 @@ import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutSessionEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
+import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanSubPage
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanViewModel
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -61,73 +62,99 @@ class WorkoutPlanViewModelTest {
     }
 
     @Test
-    fun openWizard_setsWizardOpenAndStepOne() = runTest {
+    fun tc_plan2_01_initial_state_shows_empty_no_workout_plan() = runTest {
         val viewModel = createViewModel(backgroundScope)
 
-        viewModel.openWizard()
         val state = viewModel.uiState.value
-
-        assertTrue(state.isWizardOpen)
-        assertEquals(1, state.wizardStep)
+        assertFalse(state.hasSavedPlan)
+        assertEquals(WorkoutPlanSubPage.EMPTY, state.subPage)
+        assertEquals(7, state.savedDays.size)
+        assertTrue(state.savedDays.all { it.isRestDay })
     }
 
     @Test
-    fun toggleDaySelection_andGoToNextStepAdvancesToStepTwoAndPreservesDraftNamesOnBack() = runTest {
+    fun tc_plan2_02_and_03_select_days_boundary_and_advance_to_input_page() = runTest {
         val viewModel = createViewModel(backgroundScope)
 
-        viewModel.openWizard()
+        viewModel.startCreateOrEditPlan()
+        assertEquals(WorkoutPlanSubPage.SELECT_DAYS, viewModel.uiState.value.subPage)
+        assertTrue(viewModel.uiState.value.selectedDays.isEmpty())
+
+        viewModel.goToInputPlanPage()
+        assertEquals(WorkoutPlanSubPage.SELECT_DAYS, viewModel.uiState.value.subPage)
+
         viewModel.toggleDaySelection(1)
         viewModel.toggleDaySelection(2)
         assertEquals(setOf(1, 2), viewModel.uiState.value.selectedDays)
 
-        viewModel.goToNextStep()
-        assertEquals(2, viewModel.uiState.value.wizardStep)
-
-        viewModel.updateDraftPlanName(1, "Pull Day")
-        viewModel.updateDraftPlanName(2, "Push Day")
-        viewModel.goToPreviousStep()
-
-        val stateAfterBack = viewModel.uiState.value
-        assertEquals(1, stateAfterBack.wizardStep)
-        assertEquals("Pull Day", stateAfterBack.draftPlanNames[1])
-        assertEquals("Push Day", stateAfterBack.draftPlanNames[2])
+        viewModel.goToInputPlanPage()
+        assertEquals(WorkoutPlanSubPage.INPUT_PLAN, viewModel.uiState.value.subPage)
     }
 
     @Test
-    fun requestAndConfirmCancelWizard_showsDialogThenClosesAndResetsDraftState() = runTest {
+    fun tc_plan2_04_edit_days_button_returns_to_page_1_preserving_draft_strings() = runTest {
         val viewModel = createViewModel(backgroundScope)
 
-        viewModel.openWizard()
-        viewModel.toggleDaySelection(1)
-        viewModel.updateDraftPlanName(1, "Pull Day")
-
-        viewModel.requestCancelWizard()
-        assertTrue(viewModel.uiState.value.showDiscardDialog)
-
-        viewModel.confirmDiscardWizard()
-        val resetState = viewModel.uiState.value
-        assertFalse(resetState.isWizardOpen)
-        assertFalse(resetState.showDiscardDialog)
-        assertTrue(resetState.selectedDays.isEmpty())
-        assertTrue(resetState.draftPlanNames.isEmpty())
-    }
-
-    @Test
-    fun saveWorkoutPlan_persistsSelectedDayNamesAndMarksUnselectedDaysAsRestDay() = runTest {
-        val viewModel = createViewModel(backgroundScope)
-
-        viewModel.openWizard()
+        viewModel.startCreateOrEditPlan()
         viewModel.toggleDaySelection(1)
         viewModel.toggleDaySelection(2)
-        viewModel.goToNextStep()
+        viewModel.goToInputPlanPage()
+        assertEquals(WorkoutPlanSubPage.INPUT_PLAN, viewModel.uiState.value.subPage)
+
+        viewModel.updateDraftPlanName(1, "Pull Day")
+        viewModel.goToEditDaysPage()
+        assertEquals(WorkoutPlanSubPage.SELECT_DAYS, viewModel.uiState.value.subPage)
+        assertEquals(setOf(1, 2), viewModel.uiState.value.selectedDays)
+
+        viewModel.goToInputPlanPage()
+        assertEquals(WorkoutPlanSubPage.INPUT_PLAN, viewModel.uiState.value.subPage)
+        assertEquals("Pull Day", viewModel.uiState.value.draftPlanNames[1])
+    }
+
+    @Test
+    fun tc_plan2_05_cancel_button_opens_discard_modal_and_returns_to_empty_or_saved() = runTest {
+        val viewModel = createViewModel(backgroundScope)
+
+        viewModel.startCreateOrEditPlan()
+        viewModel.toggleDaySelection(1)
+        viewModel.requestCancel()
+        assertTrue(viewModel.uiState.value.showDiscardDialog)
+
+        viewModel.dismissDiscardDialog()
+        assertFalse(viewModel.uiState.value.showDiscardDialog)
+        assertEquals(WorkoutPlanSubPage.SELECT_DAYS, viewModel.uiState.value.subPage)
+
+        viewModel.goToInputPlanPage()
+        viewModel.updateDraftPlanName(1, "Pull Day")
+        viewModel.requestCancel()
+        assertTrue(viewModel.uiState.value.showDiscardDialog)
+
+        viewModel.confirmDiscard()
+        val stateAfterDiscard = viewModel.uiState.value
+        assertFalse(stateAfterDiscard.showDiscardDialog)
+        assertFalse(stateAfterDiscard.hasSavedPlan)
+        assertEquals(WorkoutPlanSubPage.EMPTY, stateAfterDiscard.subPage)
+        assertTrue(stateAfterDiscard.selectedDays.isEmpty())
+        assertTrue(stateAfterDiscard.draftPlanNames.isEmpty())
+    }
+
+    @Test
+    fun tc_plan2_06_save_persists_plan_and_transitions_to_saved_page() = runTest {
+        val viewModel = createViewModel(backgroundScope)
+
+        viewModel.startCreateOrEditPlan()
+        viewModel.toggleDaySelection(1)
+        viewModel.toggleDaySelection(2)
+        viewModel.goToInputPlanPage()
         viewModel.updateDraftPlanName(1, "Pull Day")
         viewModel.updateDraftPlanName(2, "Push Day")
 
         viewModel.saveWorkoutPlan()
 
         val state = viewModel.uiState.value
-        assertFalse(state.isWizardOpen)
-        val plansByDay = state.weeklyPlan.associateBy { it.dayOfWeek }
+        assertTrue(state.hasSavedPlan)
+        assertEquals(WorkoutPlanSubPage.SAVED, state.subPage)
+        val plansByDay = state.savedDays.associateBy { it.dayOfWeek }
 
         assertFalse(plansByDay.getValue(1).isRestDay)
         assertEquals("Pull Day", plansByDay.getValue(1).planName)
@@ -322,4 +349,3 @@ internal class InMemoryTestGymDao : GymDao {
         return setsState.value.values.sortedBy { it.setId }
     }
 }
-
