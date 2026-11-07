@@ -64,6 +64,7 @@ import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerState
 import com.mulocoolbot.gymtracker.ui.components.ArrowRightIcon
+import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.CardBorder
 import com.mulocoolbot.gymtracker.ui.theme.CardSurface
@@ -194,56 +195,179 @@ private fun IdleWorkoutContent(
     completedSets: List<WorkoutSetEntity>,
     onStartWorkout: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        item {
-            Text(
-                text = "Workout",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-        }
+    if (completedSets.isEmpty()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppBackground)
+                .padding(horizontal = 20.dp, vertical = 24.dp)
+        ) {
+            IdleWorkoutHeaderRow(onStartWorkout = onStartWorkout)
 
-        item {
-            TodayWorkoutPlanHeroCard(
-                todayPlanName = todayPlanName,
-                onStartWorkout = onStartWorkout
-            )
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "TODAY'S COMPLETED SETS",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = TextMuted
-                )
-                Text(
-                    text = "${completedSets.size} Sets",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt
-                )
+                EmptyWorkoutTodayCard(onStartWorkout = onStartWorkout)
             }
         }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppBackground),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                IdleWorkoutHeaderRow(onStartWorkout = onStartWorkout)
+            }
 
-        items(
-            items = completedSets,
-            key = { "${it.sessionId}_${it.setId}_${it.timestampMillis}" }
-        ) { setEntity ->
-            CompletedSetCard(setEntity = setEntity)
+            item {
+                TodayWorkoutPlanHeroCard(
+                    todayPlanName = todayPlanName,
+                    onStartWorkout = onStartWorkout
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TODAY'S COMPLETED SETS",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = TextMuted
+                    )
+                    Text(
+                        text = "${completedSets.size} Sets",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WorkoutVolt
+                    )
+                }
+            }
+
+            items(
+                items = completedSets,
+                key = { "${it.sessionId}_${it.setId}_${it.timestampMillis}" }
+            ) { setEntity ->
+                CompletedSetCard(setEntity = setEntity)
+            }
+        }
+    }
+}
+
+@Composable
+private fun IdleWorkoutHeaderRow(
+    onStartWorkout: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Workout",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFFFFFFF)
+        )
+
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(WorkoutVolt)
+                .clickable(onClick = onStartWorkout),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "+",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = OnVolt
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyWorkoutTodayCard(
+    onStartWorkout: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF14161B)),
+        border = BorderStroke(1.dp, Color(0xFF232730))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1A1D24))
+                    .border(1.dp, Color(0xFF232730), RoundedCornerShape(20.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = DumbbellIcon,
+                    contentDescription = "No Workout Recorded Today",
+                    tint = WorkoutVolt,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "No Workout Recorded Today",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFFFFFF)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Start logging your sets to track your daily volume and rest timer.",
+                fontSize = 13.sp,
+                color = Color(0xFF8C92A4),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = onStartWorkout,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = WorkoutVolt,
+                    contentColor = OnVolt
+                )
+            ) {
+                Text(
+                    text = "+ Log Workout",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OnVolt
+                )
+            }
         }
     }
 }

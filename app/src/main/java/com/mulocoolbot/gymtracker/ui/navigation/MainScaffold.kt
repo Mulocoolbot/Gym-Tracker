@@ -5,6 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -232,7 +236,19 @@ private fun AuthenticatedMainContent(
             NavHost(
                 navController = navController,
                 startDestination = BottomNavTab.HOME.route,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enterTransition = {
+                    fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
+                },
+                exitTransition = {
+                    fadeOut(tween(150))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
+                },
+                popExitTransition = {
+                    fadeOut(tween(150))
+                }
             ) {
                 composable(BottomNavTab.HOME.route) {
                     HomeScreen(
@@ -322,7 +338,17 @@ private fun AuthenticatedMainContent(
                     val statsState by statsViewModel.uiState.collectAsState()
                     StatsScreen(
                         uiState = statsState,
-                        onSelectExercise = statsViewModel::selectExercise
+                        onSelectExercise = statsViewModel::selectExercise,
+                        onToggleExerciseDropdown = statsViewModel::toggleExerciseDropdown,
+                        onDismissExerciseDropdown = statsViewModel::dismissExerciseDropdown,
+                        onSelectChartPoint = statsViewModel::selectChartPoint,
+                        onSwitchHeatmapOrientation = statsViewModel::switchHeatmapOrientation,
+                        onSelectMuscleRegion = statsViewModel::selectMuscleRegion,
+                        onNavigateToLogWorkout = {
+                            ensureNotificationPermission()
+                            workoutViewModel.startWorkout()
+                            navigateToTab(navController, BottomNavTab.WORKOUT)
+                        }
                     )
                 }
 
