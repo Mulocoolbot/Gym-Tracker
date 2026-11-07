@@ -79,6 +79,8 @@ class MFitBlackBoxTestSuite {
         val freshSession = repository.authSession.first()
         assertFalse(freshSession.isAuthenticated)
         assertFalse(freshSession.isProfileCompleted)
+        assertEquals(AppStartDestination.WELCOME, authVm.uiState.value.destination)
+        authVm.onBeginFromWelcome()
         assertEquals(AppStartDestination.SIGN_IN, authVm.uiState.value.destination)
         assertNotEquals(AppStartDestination.MAIN_HOME, authVm.uiState.value.destination)
 

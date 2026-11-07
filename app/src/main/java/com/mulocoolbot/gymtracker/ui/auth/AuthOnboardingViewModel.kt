@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.auth.EmailOtpManager
 import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
@@ -29,6 +30,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class AppStartDestination {
+    WELCOME,
     SIGN_IN,
     PROFILE_SETUP,
     MAIN_HOME
@@ -43,7 +45,9 @@ data class AuthOnboardingUiState(
     val isLoading: Boolean = true,
     val authSession: AuthSession = AuthSession(),
     val userProfile: UserProfileEntity? = null,
-    val destination: AppStartDestination = AppStartDestination.SIGN_IN,
+    val hasPassedWelcome: Boolean = false,
+    val authEntryMode: AuthEntryMode = AuthEntryMode.SIGN_IN,
+    val destination: AppStartDestination = AppStartDestination.WELCOME,
     val authStep: EmailAuthStep = EmailAuthStep.EMAIL_INPUT,
     val pendingEmail: String = "",
     val otpErrorMessage: String? = null,
@@ -53,6 +57,8 @@ data class AuthOnboardingUiState(
 )
 
 private data class OtpFlowInternalState(
+    val hasPassedWelcome: Boolean = false,
+    val authEntryMode: AuthEntryMode = AuthEntryMode.SIGN_IN,
     val authStep: EmailAuthStep = EmailAuthStep.EMAIL_INPUT,
     val pendingEmail: String = "",
     val otpErrorMessage: String? = null,
@@ -81,7 +87,13 @@ class AuthOnboardingViewModel(
             isLoading = false,
             authSession = session,
             userProfile = profile,
-            destination = resolveDestination(session, profile),
+            hasPassedWelcome = otpState.hasPassedWelcome,
+            authEntryMode = otpState.authEntryMode,
+            destination = resolveDestination(
+                session = session,
+                profile = profile,
+                hasPassedWelcome = otpState.hasPassedWelcome
+            ),
             authStep = otpState.authStep,
             pendingEmail = otpState.pendingEmail,
             otpErrorMessage = otpState.otpErrorMessage,
@@ -104,6 +116,37 @@ class AuthOnboardingViewModel(
         }
     }
 
+    fun onBeginFromWelcome() {
+        otpFlowState.update {
+            it.copy(
+                hasPassedWelcome = true,
+                authEntryMode = AuthEntryMode.SIGN_IN,
+                otpErrorMessage = null
+            )
+        }
+    }
+
+    fun onBackToWelcome() {
+        countdownJob?.cancel()
+        otpFlowState.update {
+            it.copy(
+                hasPassedWelcome = false,
+                authStep = EmailAuthStep.EMAIL_INPUT,
+                otpErrorMessage = null,
+                resendCountdownSeconds = 0
+            )
+        }
+    }
+
+    fun setAuthEntryMode(mode: AuthEntryMode) {
+        otpFlowState.update {
+            it.copy(
+                authEntryMode = mode,
+                otpErrorMessage = null
+            )
+        }
+    }
+
     fun requestEmailOtp(
         context: Context? = null,
         emailInput: String,
@@ -111,6 +154,49 @@ class AuthOnboardingViewModel(
         currentMillis: Long = System.currentTimeMillis()
     ) {
         val cleanEmail = emailInput.trim()
+        otpFlowState.update { it.copy(hasPassedWelcome = true) }
+
+        if (!otpManager.isValidEmail(cleanEmail)) {
+            otpFlowState.update { it.copy(otpErrorMessage = "Invalid email address") }
+            return
+        }
+
+        val currentMode = otpFlowState.value.authEntryMode
+        if (currentMode == AuthEntryMode.LOG_IN) {
+            viewModelScope.launch {
+                val registered = repository.isEmailRegistered(cleanEmail)
+                val hasProfile = repository.hasExistingUserProfile(cleanEmail)
+                if (!registered && !hasProfile) {
+                    otpFlowState.update {
+                        it.copy(
+                            otpErrorMessage = "Account not found. Switch to Sign In to create an account."
+                        )
+                    }
+                    return@launch
+                }
+                dispatchEmailOtpGeneration(
+                    context = context,
+                    cleanEmail = cleanEmail,
+                    isResend = isResend,
+                    currentMillis = currentMillis
+                )
+            }
+        } else {
+            dispatchEmailOtpGeneration(
+                context = context,
+                cleanEmail = cleanEmail,
+                isResend = isResend,
+                currentMillis = currentMillis
+            )
+        }
+    }
+
+    private fun dispatchEmailOtpGeneration(
+        context: Context?,
+        cleanEmail: String,
+        isResend: Boolean,
+        currentMillis: Long
+    ) {
         val (result, code) = otpManager.generateOtp(
             email = cleanEmail,
             currentMillis = currentMillis,
@@ -155,6 +241,7 @@ class AuthOnboardingViewModel(
         currentMillis: Long = System.currentTimeMillis()
     ) {
         val targetEmail = otpFlowState.value.pendingEmail
+        val entryMode = otpFlowState.value.authEntryMode
         val verifyResult = otpManager.verifyOtp(
             email = targetEmail,
             inputCode = otpInput,
@@ -172,7 +259,7 @@ class AuthOnboardingViewModel(
                     )
                 }
                 viewModelScope.launch {
-                    repository.signInWithEmail(targetEmail)
+                    repository.signInWithEmail(targetEmail, entryMode)
                 }
             }
             OtpVerifyResult.EXPIRED_CODE -> {
@@ -200,19 +287,22 @@ class AuthOnboardingViewModel(
     fun onGoogleAuthenticated(email: String, displayName: String? = null) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
+        val entryMode = otpFlowState.value.authEntryMode
         otpFlowState.update {
             it.copy(
+                hasPassedWelcome = true,
                 otpErrorMessage = null,
                 suggestedDisplayName = displayName?.trim()?.takeIf { name -> name.isNotEmpty() }
             )
         }
         viewModelScope.launch {
-            repository.signInWithGoogle(cleanEmail)
+            repository.signInWithGoogle(cleanEmail, entryMode)
         }
     }
 
     fun onCreateAccount(email: String, password: String) {
         val cleanEmail = email.trim()
+        otpFlowState.update { it.copy(hasPassedWelcome = true) }
         if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
             otpFlowState.update {
                 it.copy(otpErrorMessage = "Enter a valid email and 6+ character password")
@@ -230,6 +320,7 @@ class AuthOnboardingViewModel(
 
     fun onSignInWithEmailPassword(email: String, password: String) {
         val cleanEmail = email.trim()
+        otpFlowState.update { it.copy(hasPassedWelcome = true) }
         if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
             otpFlowState.update { it.copy(otpErrorMessage = "Enter your email and password") }
             return
@@ -254,9 +345,15 @@ class AuthOnboardingViewModel(
     fun onEmailSignIn(email: String) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
-        otpFlowState.update { it.copy(otpErrorMessage = null) }
+        val entryMode = otpFlowState.value.authEntryMode
+        otpFlowState.update {
+            it.copy(
+                hasPassedWelcome = true,
+                otpErrorMessage = null
+            )
+        }
         viewModelScope.launch {
-            repository.signInWithEmail(cleanEmail)
+            repository.signInWithEmail(cleanEmail, entryMode)
         }
     }
 
@@ -354,10 +451,13 @@ class AuthOnboardingViewModel(
     companion object {
         fun resolveDestination(
             session: AuthSession,
-            profile: UserProfileEntity?
+            profile: UserProfileEntity?,
+            hasPassedWelcome: Boolean = true
         ): AppStartDestination {
             return when {
-                !session.isAuthenticated -> AppStartDestination.SIGN_IN
+                !session.isAuthenticated -> {
+                    if (hasPassedWelcome) AppStartDestination.SIGN_IN else AppStartDestination.WELCOME
+                }
                 !session.isProfileCompleted || profile == null -> AppStartDestination.PROFILE_SETUP
                 else -> AppStartDestination.MAIN_HOME
             }

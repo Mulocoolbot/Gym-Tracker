@@ -1,5 +1,6 @@
 package com.mulocoolbot.gymtracker.data.repository
 
+import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.auth.SessionPreferences
 import com.mulocoolbot.gymtracker.data.backup.GymBackupManager
@@ -44,6 +45,16 @@ class GymRepository(
         return dao.observeAllSets()
     }
 
+    suspend fun isEmailRegistered(email: String): Boolean {
+        return sessionPreferences.isEmailRegistered(email)
+    }
+
+    suspend fun hasExistingUserProfile(email: String): Boolean {
+        val profile = dao.getUserProfile() ?: return false
+        val expectedUid = SessionPreferences.computeUidForEmail(email)
+        return profile.uid == expectedUid
+    }
+
     suspend fun registerWithEmailPassword(email: String, password: String): Boolean {
         val registered = sessionPreferences.registerWithEmailPassword(email, password)
         if (!registered) return false
@@ -76,24 +87,70 @@ class GymRepository(
         return true
     }
 
-    suspend fun signInWithGoogle(email: String) {
-        sessionPreferences.signInWithGoogle(email)
+    suspend fun signInWithGoogle(
+        email: String,
+        entryMode: AuthEntryMode = AuthEntryMode.SIGN_IN
+    ) {
+        val wasRegistered = sessionPreferences.isEmailRegistered(email)
+        sessionPreferences.signInWithGoogle(email, entryMode)
         val existingProfile = dao.getUserProfile()
         val session = sessionPreferences.authSessionFlow.first()
-        if (existingProfile != null && existingProfile.uid == session.uid) {
+        val hasMatchingProfile = existingProfile != null && existingProfile.uid == session.uid
+
+        if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
             sessionPreferences.markProfileCompleted(true)
+            if (existingProfile != null) {
+                syncAuthFlagsToProfile()
+            } else {
+                dao.upsertUserProfile(
+                    UserProfileEntity(
+                        uid = session.uid,
+                        name = email.trim().substringBefore("@").ifBlank { "Athlete" },
+                        birthDateMillis = 946684800000L,
+                        heightCm = 175.0,
+                        weightKg = 70.0,
+                        isGoogleLinked = session.isGoogleLinked,
+                        isEmailLinked = session.isEmailLinked
+                    )
+                )
+            }
+        } else {
+            sessionPreferences.markProfileCompleted(false)
+            syncAuthFlagsToProfile()
         }
-        syncAuthFlagsToProfile()
     }
 
-    suspend fun signInWithEmail(email: String) {
-        sessionPreferences.signInWithEmail(email)
+    suspend fun signInWithEmail(
+        email: String,
+        entryMode: AuthEntryMode = AuthEntryMode.SIGN_IN
+    ) {
+        val wasRegistered = sessionPreferences.isEmailRegistered(email)
+        sessionPreferences.signInWithEmail(email, entryMode)
         val existingProfile = dao.getUserProfile()
         val session = sessionPreferences.authSessionFlow.first()
-        if (existingProfile != null && existingProfile.uid == session.uid) {
+        val hasMatchingProfile = existingProfile != null && existingProfile.uid == session.uid
+
+        if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
             sessionPreferences.markProfileCompleted(true)
+            if (existingProfile != null) {
+                syncAuthFlagsToProfile()
+            } else {
+                dao.upsertUserProfile(
+                    UserProfileEntity(
+                        uid = session.uid,
+                        name = email.trim().substringBefore("@").ifBlank { "Athlete" },
+                        birthDateMillis = 946684800000L,
+                        heightCm = 175.0,
+                        weightKg = 70.0,
+                        isGoogleLinked = session.isGoogleLinked,
+                        isEmailLinked = session.isEmailLinked
+                    )
+                )
+            }
+        } else {
+            sessionPreferences.markProfileCompleted(false)
+            syncAuthFlagsToProfile()
         }
-        syncAuthFlagsToProfile()
     }
 
     suspend fun unlinkGoogle() {

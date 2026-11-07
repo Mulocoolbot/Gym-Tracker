@@ -63,6 +63,7 @@ import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingUiState
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import com.mulocoolbot.gymtracker.ui.auth.ProfileSetupScreen
 import com.mulocoolbot.gymtracker.ui.auth.SignInScreen
+import com.mulocoolbot.gymtracker.ui.auth.WelcomeScreen
 import com.mulocoolbot.gymtracker.ui.components.CalendarPlanIcon
 import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
 import com.mulocoolbot.gymtracker.ui.components.HomeIcon
@@ -111,6 +112,12 @@ fun MainScaffold(
     SystemPermissionsRequester()
 
     when (authUiState.destination) {
+        AppStartDestination.WELCOME -> {
+            WelcomeScreen(
+                onBeginClick = authViewModel::onBeginFromWelcome
+            )
+        }
+
         AppStartDestination.SIGN_IN -> {
             SignInScreen(
                 authStep = authUiState.authStep,
@@ -132,7 +139,10 @@ fun MainScaffold(
                     )
                 },
                 onBackToEmailInput = authViewModel::backToEmailInput,
-                onClearError = authViewModel::clearAuthError
+                onClearError = authViewModel::clearAuthError,
+                authEntryMode = authUiState.authEntryMode,
+                onSwitchAuthMode = authViewModel::setAuthEntryMode,
+                onBackToWelcome = authViewModel::onBackToWelcome
             )
         }
 

@@ -3,8 +3,10 @@ package com.mulocoolbot.gymtracker.ui.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,8 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -40,13 +42,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -58,20 +71,24 @@ import com.mulocoolbot.gymtracker.data.auth.OtpVerifyResult
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.ui.auth.SixDigitOtpInputField
 import com.mulocoolbot.gymtracker.ui.auth.rememberGoogleAuthLauncher
+import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
-import com.mulocoolbot.gymtracker.ui.theme.CardBorder
-import com.mulocoolbot.gymtracker.ui.theme.CardSurface
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
-import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
-import com.mulocoolbot.gymtracker.ui.theme.TextMuted
-import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
-import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import java.util.Locale
+import kotlin.math.round
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val SettingsCardBg = Color(0xFF14161B)
+private val SettingsInnerBg = Color(0xFF1A1D24)
+private val SettingsBorder = Color(0xFF232730)
+private val SettingsVolt = Color(0xFFCCFF00)
+private val SettingsWhite = Color(0xFFFFFFFF)
+private val SettingsMuted = Color(0xFF8C92A4)
+private val SettingsDanger = Color(0xFFEF4444)
 
 @Composable
 fun SettingsScreen(
@@ -133,13 +150,14 @@ fun SettingsScreen(
     ) {
         Text(
             text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = SettingsWhite
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        AboutMeCard(
+        AboutMeBentoCard(
             uid = userProfile?.uid ?: authSession.uid,
             userProfile = userProfile,
             onUpdateProfile = onUpdateProfile
@@ -147,7 +165,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        AccountInfoCard(
+        AccountInfoBentoCard(
             authSession = authSession,
             onToggleGoogleLink = onToggleGoogleLink,
             onToggleEmailLink = onToggleEmailLink
@@ -155,7 +173,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        DataBackupCard(
+        DataBackupBentoCard(
             onExportClick = { exportLauncher.launch("mfit_backup.json") },
             onImportClick = { importLauncher.launch(arrayOf("application/json")) }
         )
@@ -163,27 +181,29 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun AboutMeCard(
+private fun AboutMeBentoCard(
     uid: String,
     userProfile: UserProfileEntity?,
     onUpdateProfile: (name: String, weightKg: Double, heightCm: Double) -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
+
     var nameInput by remember(userProfile?.name) {
         mutableStateOf(userProfile?.name.orEmpty())
     }
     var weightInput by remember(userProfile?.weightKg) {
-        mutableStateOf(userProfile?.weightKg?.let { formatMetricNumber(it) }.orEmpty())
+        mutableStateOf(userProfile?.weightKg?.let { formatMetricNumber(it) } ?: "70.0")
     }
     var heightInput by remember(userProfile?.heightCm) {
-        mutableStateOf(userProfile?.heightCm?.let { formatMetricNumber(it) }.orEmpty())
+        mutableStateOf(userProfile?.heightCm?.let { formatMetricNumber(it) } ?: "175")
     }
 
     val ageValue = remember(userProfile?.birthDateMillis) {
-        WorkoutCalculator.calculateAge(userProfile?.birthDateMillis ?: 0L).toString()
+        WorkoutCalculator.calculateAge(userProfile?.birthDateMillis ?: 0L)
     }
 
     fun commitIfValid(newName: String, newWeight: String, newHeight: String) {
-        val cleanName = newName.trim()
+        val cleanName = newName.trim().ifEmpty { userProfile?.name?.trim().orEmpty() }
         val parsedWeight = newWeight.trim().toDoubleOrNull() ?: return
         val parsedHeight = newHeight.trim().toDoubleOrNull() ?: return
         if (cleanName.isNotEmpty() && parsedWeight > 0.0 && parsedHeight > 0.0) {
@@ -191,169 +211,256 @@ private fun AboutMeCard(
         }
     }
 
+    fun stepWeight(delta: Double) {
+        val current = weightInput.toDoubleOrNull() ?: userProfile?.weightKg ?: 70.0
+        val updated = (round((current + delta) * 10.0) / 10.0).coerceAtLeast(1.0)
+        val formatted = formatMetricNumber(updated)
+        weightInput = formatted
+        commitIfValid(nameInput, formatted, heightInput)
+    }
+
+    fun stepHeight(delta: Int) {
+        val current = heightInput.toDoubleOrNull() ?: userProfile?.heightCm ?: 175.0
+        val updated = (current + delta).coerceAtLeast(50.0)
+        val formatted = formatMetricNumber(updated)
+        heightInput = formatted
+        commitIfValid(nameInput, weightInput, formatted)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
+        border = BorderStroke(1.dp, SettingsBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                text = "About Me",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
-            )
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ABOUT ME",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp,
+                    color = SettingsMuted
+                )
+
+                val displayUid = uid.ifBlank { "-" }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(SettingsInnerBg)
+                        .border(1.dp, SettingsBorder, RoundedCornerShape(50))
+                        .clickable {
+                            if (uid.isNotBlank()) {
+                                clipboardManager.setText(AnnotatedString(uid))
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = displayUid,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = SettingsVolt,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.width(140.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            StaticSettingRow(
-                label = "User ID",
-                value = uid.ifBlank { "-" },
-                isMonospace = true
-            )
-
-            RowDivider()
-
-            EditableSettingRow(
-                label = "Name",
-                value = nameInput,
-                keyboardType = KeyboardType.Text,
-                onValueChange = { updated ->
-                    nameInput = updated
-                    commitIfValid(updated, weightInput, heightInput)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(2f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SettingsInnerBg)
+                        .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "NAME",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp,
+                        color = SettingsMuted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    BasicTextField(
+                        value = nameInput,
+                        onValueChange = { updated ->
+                            nameInput = updated
+                            commitIfValid(updated, weightInput, heightInput)
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        cursorBrush = SolidColor(SettingsVolt),
+                        textStyle = TextStyle(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = SettingsWhite
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-            )
 
-            RowDivider()
-
-            StaticSettingRow(
-                label = "Age",
-                value = ageValue,
-                isMonospace = true
-            )
-
-            RowDivider()
-
-            EditableSettingRow(
-                label = "Weight (kg)",
-                value = weightInput,
-                keyboardType = KeyboardType.Decimal,
-                onValueChange = { updated ->
-                    weightInput = updated
-                    commitIfValid(nameInput, updated, heightInput)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SettingsInnerBg)
+                        .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "AGE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp,
+                        color = SettingsMuted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "${ageValue} yrs",
+                        fontSize = 16.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = SettingsWhite,
+                        maxLines = 1
+                    )
                 }
-            )
+            }
 
-            RowDivider()
+            Spacer(modifier = Modifier.height(12.dp))
 
-            EditableSettingRow(
-                label = "Height (cm)",
-                value = heightInput,
-                keyboardType = KeyboardType.Decimal,
-                onValueChange = { updated ->
-                    heightInput = updated
-                    commitIfValid(nameInput, weightInput, updated)
-                }
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SettingsMetricStepperBox(
+                    label = "WEIGHT (KG)",
+                    value = weightInput,
+                    onValueChange = { updated ->
+                        weightInput = updated
+                        commitIfValid(nameInput, updated, heightInput)
+                    },
+                    onDecrement = { stepWeight(-0.5) },
+                    onIncrement = { stepWeight(0.5) },
+                    modifier = Modifier.weight(1f)
+                )
+
+                SettingsMetricStepperBox(
+                    label = "HEIGHT (CM)",
+                    value = heightInput,
+                    onValueChange = { updated ->
+                        heightInput = updated
+                        commitIfValid(nameInput, weightInput, updated)
+                    },
+                    onDecrement = { stepHeight(-1) },
+                    onIncrement = { stepHeight(1) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun StaticSettingRow(
+private fun SettingsMetricStepperBox(
     label: String,
     value: String,
-    isMonospace: Boolean
+    onValueChange: (String) -> Unit,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(SettingsInnerBg)
+            .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+            .padding(12.dp)
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextMuted
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = value,
-            style = if (isMonospace) {
-                TextStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = TextPrimary
-                )
-            } else {
-                MaterialTheme.typography.bodyMedium
-            },
-            color = TextPrimary,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun EditableSettingRow(
-    label: String,
-    value: String,
-    keyboardType: KeyboardType,
-    onValueChange: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextMuted
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.6.sp,
+            color = SettingsMuted
         )
 
-        Box(
-            modifier = Modifier
-                .width(150.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(InputSurface)
-                .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SettingsCardBg)
+                    .border(1.dp, SettingsBorder, RoundedCornerShape(10.dp))
+                    .clickable(onClick = onDecrement),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "-",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsWhite
+                )
+            }
+
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-                cursorBrush = SolidColor(VoltAccent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(SettingsVolt),
                 textStyle = TextStyle(
-                    fontFamily = if (keyboardType == KeyboardType.Decimal) {
-                        FontFamily.Monospace
-                    } else {
-                        FontFamily.SansSerif
-                    },
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = TextPrimary,
-                    textAlign = TextAlign.End
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = SettingsWhite,
+                    textAlign = TextAlign.Center
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.weight(1f)
             )
+
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SettingsCardBg)
+                    .border(1.dp, SettingsBorder, RoundedCornerShape(10.dp))
+                    .clickable(onClick = onIncrement),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "+",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsVolt
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun RowDivider() {
-    HorizontalDivider(color = CardBorder, thickness = 1.dp)
-}
-
-@Composable
-private fun AccountInfoCard(
+private fun AccountInfoBentoCard(
     authSession: AuthSession,
     onToggleGoogleLink: (defaultEmail: String) -> Unit,
     onToggleEmailLink: (emailInput: String) -> Unit
@@ -368,20 +475,22 @@ private fun AccountInfoCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
+        border = BorderStroke(1.dp, SettingsBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "Account Info",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
+                text = "ACCOUNT INFO",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.8.sp,
+                color = SettingsMuted
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            ProviderStatusBox(
+            ProviderStatusBentoRow(
                 providerName = "Google",
                 linkedAddress = if (authSession.isGoogleLinked) {
                     authSession.googleEmail ?: "Linked"
@@ -389,6 +498,14 @@ private fun AccountInfoCard(
                     "Not linked"
                 },
                 isLinked = authSession.isGoogleLinked,
+                iconContent = {
+                    Icon(
+                        imageVector = GoogleLogoIcon,
+                        contentDescription = "Google",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
                 onActionClick = {
                     if (authSession.isGoogleLinked) {
                         onToggleGoogleLink("")
@@ -400,7 +517,7 @@ private fun AccountInfoCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            ProviderStatusBox(
+            ProviderStatusBentoRow(
                 providerName = "Email",
                 linkedAddress = if (authSession.isEmailLinked) {
                     authSession.userEmail ?: "Linked"
@@ -408,6 +525,9 @@ private fun AccountInfoCard(
                     "Not linked"
                 },
                 isLinked = authSession.isEmailLinked,
+                iconContent = {
+                    EmailEnvelopeIcon(tint = SettingsVolt)
+                },
                 onActionClick = {
                     if (authSession.isEmailLinked) {
                         onToggleEmailLink("")
@@ -431,6 +551,129 @@ private fun AccountInfoCard(
 }
 
 @Composable
+private fun EmailEnvelopeIcon(tint: Color) {
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        val left = size.width * 0.1f
+        val top = size.height * 0.2f
+        val rectWidth = size.width * 0.8f
+        val rectHeight = size.height * 0.6f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(left, top),
+            size = Size(rectWidth, rectHeight),
+            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+            style = Stroke(width = strokeWidth)
+        )
+
+        val flapPath = Path().apply {
+            moveTo(left + strokeWidth * 0.4f, top + strokeWidth * 0.5f)
+            lineTo(size.width * 0.5f, size.height * 0.54f)
+            lineTo(left + rectWidth - strokeWidth * 0.4f, top + strokeWidth * 0.5f)
+        }
+        drawPath(
+            path = flapPath,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProviderStatusBentoRow(
+    providerName: String,
+    linkedAddress: String,
+    isLinked: Boolean,
+    iconContent: @Composable () -> Unit,
+    onActionClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SettingsInnerBg)
+            .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SettingsCardBg)
+                    .border(1.dp, SettingsBorder, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                iconContent()
+            }
+
+            Column {
+                Text(
+                    text = providerName,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsWhite
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = linkedAddress,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isLinked) SettingsVolt else SettingsMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        if (isLinked) {
+            OutlinedButton(
+                onClick = onActionClick,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, SettingsDanger),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SettingsDanger)
+            ) {
+                Text(
+                    text = "Log Out",
+                    fontSize = 12.sp,
+                    color = SettingsDanger,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            Button(
+                onClick = onActionClick,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SettingsVolt,
+                    contentColor = OnVolt
+                )
+            ) {
+                Text(
+                    text = "Link",
+                    fontSize = 12.sp,
+                    color = OnVolt,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun LinkEmailOtpDialog(
     onDismiss: () -> Unit,
     onVerifiedEmail: (String) -> Unit
@@ -447,15 +690,16 @@ private fun LinkEmailOtpDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = BorderStroke(1.dp, CardBorder)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
+            border = BorderStroke(1.dp, SettingsBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = if (isOtpStep) "Verify Email" else "Link Email",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsWhite
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -468,25 +712,25 @@ private fun LinkEmailOtpDialog(
                             errorMessage = null
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(text = "Email address", color = TextMuted) },
+                        placeholder = { Text(text = "Email address", color = SettingsMuted) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            focusedContainerColor = InputSurface,
-                            unfocusedContainerColor = InputSurface,
-                            focusedBorderColor = VoltAccent,
-                            unfocusedBorderColor = CardBorder,
-                            cursorColor = VoltAccent
+                            focusedTextColor = SettingsWhite,
+                            unfocusedTextColor = SettingsWhite,
+                            focusedContainerColor = SettingsInnerBg,
+                            unfocusedContainerColor = SettingsInnerBg,
+                            focusedBorderColor = SettingsVolt,
+                            unfocusedBorderColor = SettingsBorder,
+                            cursorColor = SettingsVolt
                         )
                     )
                 } else {
                     Text(
                         text = emailInput.trim(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
+                        fontSize = 13.sp,
+                        color = SettingsMuted
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     SixDigitOtpInputField(
@@ -502,8 +746,8 @@ private fun LinkEmailOtpDialog(
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = errorMessage!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DangerRed
+                        fontSize = 12.sp,
+                        color = SettingsDanger
                     )
                 }
 
@@ -514,7 +758,7 @@ private fun LinkEmailOtpDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text(text = "Cancel", color = TextMuted)
+                        Text(text = "Cancel", color = SettingsMuted)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -539,17 +783,17 @@ private fun LinkEmailOtpDialog(
                             }
                         },
                         enabled = if (!isOtpStep) emailInput.isNotBlank() else otpCodeInput.length == 6,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = VoltAccent,
+                            containerColor = SettingsVolt,
                             contentColor = OnVolt,
-                            disabledContainerColor = InputSurface,
-                            disabledContentColor = TextMuted
+                            disabledContainerColor = SettingsInnerBg,
+                            disabledContentColor = SettingsMuted
                         )
                     ) {
                         Text(
                             text = if (!isOtpStep) "Send Code" else "Verify",
-                            style = MaterialTheme.typography.labelLarge,
+                            fontSize = 13.sp,
                             color = OnVolt,
                             fontWeight = FontWeight.Bold
                         )
@@ -561,86 +805,23 @@ private fun LinkEmailOtpDialog(
 }
 
 @Composable
-private fun ProviderStatusBox(
-    providerName: String,
-    linkedAddress: String,
-    isLinked: Boolean,
-    onActionClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(InputSurface)
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = providerName,
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = linkedAddress,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted
-            )
-        }
-
-        if (isLinked) {
-            OutlinedButton(
-                onClick = onActionClick,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, DangerRed),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed)
-            ) {
-                Text(
-                    text = "Log Out",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = DangerRed,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        } else {
-            Button(
-                onClick = onActionClick,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = VoltAccent,
-                    contentColor = OnVolt
-                )
-            ) {
-                Text(
-                    text = "Link",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = OnVolt,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DataBackupCard(
+private fun DataBackupBentoCard(
     onExportClick: () -> Unit,
     onImportClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
+        border = BorderStroke(1.dp, SettingsBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "Data",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
+                text = "DATA",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.8.sp,
+                color = SettingsMuted
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -653,16 +834,16 @@ private fun DataBackupCard(
                     onClick = onExportClick,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(10.dp),
+                        .height(50.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VoltAccent,
+                        containerColor = SettingsVolt,
                         contentColor = OnVolt
                     )
                 ) {
                     Text(
                         text = "Export",
-                        style = MaterialTheme.typography.labelLarge,
+                        fontSize = 14.sp,
                         color = OnVolt,
                         fontWeight = FontWeight.Bold
                     )
@@ -672,18 +853,18 @@ private fun DataBackupCard(
                     onClick = onImportClick,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, CardBorder),
+                        .height(50.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, SettingsBorder),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = InputSurface,
-                        contentColor = TextPrimary
+                        containerColor = SettingsInnerBg,
+                        contentColor = SettingsWhite
                     )
                 ) {
                     Text(
                         text = "Import",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        color = SettingsWhite,
                         fontWeight = FontWeight.Bold
                     )
                 }

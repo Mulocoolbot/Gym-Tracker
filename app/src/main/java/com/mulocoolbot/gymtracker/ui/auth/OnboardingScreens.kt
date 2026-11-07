@@ -3,6 +3,7 @@ package com.mulocoolbot.gymtracker.ui.auth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -24,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -45,22 +50,112 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
+import com.mulocoolbot.gymtracker.ui.components.ArrowRightIcon
+import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
 import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
-import com.mulocoolbot.gymtracker.ui.theme.AppBackground
-import com.mulocoolbot.gymtracker.ui.theme.CardBorder
-import com.mulocoolbot.gymtracker.ui.theme.CardSurface
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
-import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
-import com.mulocoolbot.gymtracker.ui.theme.TextMuted
-import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
-import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
+import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.Locale
+import kotlin.math.round
+
+private val AuthScreenBg = Color(0xFF0B0C0E)
+private val AuthCardBg = Color(0xFF14161B)
+private val AuthInputBg = Color(0xFF1A1D24)
+private val AuthBorder = Color(0xFF232730)
+private val AuthVolt = Color(0xFFCCFF00)
+private val AuthWhite = Color(0xFFFFFFFF)
+private val AuthMuted = Color(0xFF8C92A4)
+
+@Composable
+fun WelcomeScreen(
+    onBeginClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AuthScreenBg)
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(AuthCardBg)
+                .border(1.dp, AuthBorder, RoundedCornerShape(22.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = DumbbellIcon,
+                contentDescription = "MFIT Emblem",
+                tint = AuthVolt,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "MFIT",
+                fontSize = 56.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1.5).sp,
+                color = AuthWhite
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "See the Progress",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AuthVolt
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(AuthVolt)
+                .clickable(onClick = onBeginClick)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Begin",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = OnVolt
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(OnVolt.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = ArrowRightIcon,
+                    contentDescription = "Begin",
+                    tint = OnVolt,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun SignInScreen(
@@ -73,7 +168,11 @@ fun SignInScreen(
     onVerifyEmailOtp: (otpCode: String) -> Unit,
     onResendEmailOtp: () -> Unit,
     onBackToEmailInput: () -> Unit,
-    onClearError: () -> Unit = {}
+    onClearError: () -> Unit = {},
+    authEntryMode: AuthEntryMode = AuthEntryMode.SIGN_IN,
+    isLinkingFromSettings: Boolean = false,
+    onSwitchAuthMode: (AuthEntryMode) -> Unit = {},
+    onBackToWelcome: () -> Unit = {}
 ) {
     val launchGoogleAuth = rememberGoogleAuthLauncher(
         onSuccess = onGoogleAuthenticated
@@ -82,7 +181,11 @@ fun SignInScreen(
     when (authStep) {
         EmailAuthStep.EMAIL_INPUT -> {
             EmailInputStepContent(
+                authEntryMode = authEntryMode,
+                isLinkingFromSettings = isLinkingFromSettings,
                 otpErrorMessage = otpErrorMessage,
+                onSwitchAuthMode = onSwitchAuthMode,
+                onBackToWelcome = onBackToWelcome,
                 onContinueWithGoogle = launchGoogleAuth,
                 onSendCode = onSendEmailOtp,
                 onClearError = onClearError
@@ -104,39 +207,145 @@ fun SignInScreen(
 
 @Composable
 private fun EmailInputStepContent(
+    authEntryMode: AuthEntryMode,
+    isLinkingFromSettings: Boolean,
     otpErrorMessage: String?,
+    onSwitchAuthMode: (AuthEntryMode) -> Unit,
+    onBackToWelcome: () -> Unit,
     onContinueWithGoogle: () -> Unit,
     onSendCode: (String) -> Unit,
     onClearError: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
+    val isSignInMode = authEntryMode == AuthEntryMode.SIGN_IN
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
-            .padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.Center
+            .background(AuthScreenBg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(AuthCardBg)
+                    .border(1.dp, AuthBorder, RoundedCornerShape(50))
+                    .clickable(onClick = onBackToWelcome)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isLinkingFromSettings) "Cancel" else "Back",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthWhite
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(AuthCardBg)
+                .border(1.dp, AuthBorder, RoundedCornerShape(16.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            AuthModeTabItem(
+                label = "Sign In",
+                isSelected = isSignInMode,
+                modifier = Modifier.weight(1f),
+                onClick = { onSwitchAuthMode(AuthEntryMode.SIGN_IN) }
+            )
+            AuthModeTabItem(
+                label = "Log In",
+                isSelected = !isSignInMode,
+                modifier = Modifier.weight(1f),
+                onClick = { onSwitchAuthMode(AuthEntryMode.LOG_IN) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         Text(
-            text = "Sign In",
-            style = MaterialTheme.typography.headlineLarge,
-            color = TextPrimary
+            text = if (isSignInMode) "Sign In" else "Log In",
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = AuthWhite
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        GoogleSignInButton(onClick = onContinueWithGoogle)
+        Text(
+            text = if (isSignInMode) {
+                "Create a new MFit account to start tracking your progress."
+            } else {
+                "Welcome back. Log in with your registered account."
+            },
+            fontSize = 14.sp,
+            color = AuthMuted
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        GoogleSignInButton(
+            label = if (isSignInMode) "Sign In with Google" else "Log In with Google",
+            onClick = onContinueWithGoogle
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = AuthBorder,
+                thickness = 1.dp
+            )
+            Text(
+                text = "OR EMAIL",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = AuthMuted,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = AuthBorder,
+                thickness = 1.dp
+            )
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = BorderStroke(1.dp, CardBorder)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
+            border = BorderStroke(1.dp, AuthBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "EMAIL ADDRESS",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = AuthMuted
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = {
@@ -144,18 +353,19 @@ private fun EmailInputStepContent(
                         onClearError()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "Email address", color = TextMuted) },
+                    placeholder = { Text(text = "you@example.com", color = AuthMuted) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = gymTextFieldColors()
+                    shape = RoundedCornerShape(16.dp),
+                    colors = bentoTextFieldColors()
                 )
 
                 if (!otpErrorMessage.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = otpErrorMessage,
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
                         color = DangerRed
                     )
                 }
@@ -167,23 +377,76 @@ private fun EmailInputStepContent(
                     enabled = email.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(10.dp),
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VoltAccent,
+                        containerColor = AuthVolt,
                         contentColor = OnVolt,
-                        disabledContainerColor = InputSurface,
-                        disabledContentColor = TextMuted
+                        disabledContainerColor = AuthInputBg,
+                        disabledContentColor = AuthMuted
                     )
                 ) {
                     Text(
-                        text = "Send Code",
-                        style = MaterialTheme.typography.labelLarge,
+                        text = if (isSignInMode) {
+                            "Sign In with Email (Send Code)"
+                        } else {
+                            "Log In with Email (Send Code)"
+                        },
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            TextButton(
+                onClick = {
+                    val targetMode = if (isSignInMode) AuthEntryMode.LOG_IN else AuthEntryMode.SIGN_IN
+                    onSwitchAuthMode(targetMode)
+                }
+            ) {
+                Text(
+                    text = if (isSignInMode) {
+                        "Already have an account? Log In"
+                    } else {
+                        "New to MFit? Sign In (Create Account)"
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuthVolt
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuthModeTabItem(
+    label: String,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) AuthVolt else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isSelected) OnVolt else AuthMuted
+        )
     }
 }
 
@@ -202,41 +465,56 @@ private fun OtpVerificationStepContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
-            .padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.Center
+            .background(AuthScreenBg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        TextButton(onClick = onBackToEmailInput) {
-            Text(
-                text = "Change Email",
-                style = MaterialTheme.typography.labelLarge,
-                color = VoltAccent
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(AuthCardBg)
+                    .border(1.dp, AuthBorder, RoundedCornerShape(50))
+                    .clickable(onClick = onBackToEmailInput)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Change Email",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthVolt
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Verify Email",
-            style = MaterialTheme.typography.headlineLarge,
-            color = TextPrimary
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = AuthWhite
         )
 
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
             text = pendingEmail,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextMuted
+            fontSize = 14.sp,
+            color = AuthMuted
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = BorderStroke(1.dp, CardBorder)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
+            border = BorderStroke(1.dp, AuthBorder)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -254,7 +532,8 @@ private fun OtpVerificationStepContent(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = otpErrorMessage,
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
                         color = DangerRed
                     )
                 }
@@ -266,18 +545,18 @@ private fun OtpVerificationStepContent(
                     enabled = otpCode.length == 6,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(10.dp),
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VoltAccent,
+                        containerColor = AuthVolt,
                         contentColor = OnVolt,
-                        disabledContainerColor = InputSurface,
-                        disabledContentColor = TextMuted
+                        disabledContainerColor = AuthInputBg,
+                        disabledContentColor = AuthMuted
                     )
                 ) {
                     Text(
                         text = "Verify",
-                        style = MaterialTheme.typography.labelLarge,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -295,8 +574,9 @@ private fun OtpVerificationStepContent(
                     }
                     Text(
                         text = resendLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (resendCountdownSeconds > 0) TextMuted else VoltAccent
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (resendCountdownSeconds > 0) AuthMuted else AuthVolt
                     )
                 }
             }
@@ -316,7 +596,7 @@ fun SixDigitOtpInputField(
             onCodeChange(digitsOnly)
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-        cursorBrush = SolidColor(VoltAccent),
+        cursorBrush = SolidColor(AuthVolt),
         decorationBox = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -329,12 +609,12 @@ fun SixDigitOtpInputField(
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(InputSurface)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(AuthInputBg)
                             .border(
                                 width = 1.dp,
-                                color = if (isFocusedIndex) VoltAccent else CardBorder,
-                                shape = RoundedCornerShape(10.dp)
+                                color = if (isFocusedIndex) AuthVolt else AuthBorder,
+                                shape = RoundedCornerShape(14.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -344,7 +624,7 @@ fun SixDigitOtpInputField(
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp,
-                                color = TextPrimary
+                                color = AuthWhite
                             )
                         )
                     }
@@ -355,15 +635,18 @@ fun SixDigitOtpInputField(
 }
 
 @Composable
-private fun GoogleSignInButton(onClick: () -> Unit) {
+private fun GoogleSignInButton(
+    label: String,
+    onClick: () -> Unit
+) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(12.dp),
+            .height(54.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White,
+            containerColor = AuthWhite,
             contentColor = OnVolt
         )
     ) {
@@ -376,8 +659,8 @@ private fun GoogleSignInButton(onClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "Continue with Google",
-                style = MaterialTheme.typography.labelLarge,
+                text = label,
+                fontSize = 15.sp,
                 color = OnVolt,
                 fontWeight = FontWeight.Bold
             )
@@ -393,30 +676,57 @@ fun ProfileSetupScreen(
 ) {
     var name by remember(initialName) { mutableStateOf(initialName) }
     var birthDateText by remember { mutableStateOf("2000-01-01") }
-    var weightKg by remember { mutableStateOf("") }
-    var heightCm by remember { mutableStateOf("") }
+    var weightKg by remember { mutableStateOf("70.0") }
+    var heightCm by remember { mutableStateOf("175") }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    val birthDateMillis = parseBirthDateMillis(birthDateText)
+    val calculatedAge = remember(birthDateMillis) {
+        WorkoutCalculator.calculateAge(birthDateMillis)
+    }
+
+    fun adjustWeight(delta: Double) {
+        val current = weightKg.toDoubleOrNull() ?: 70.0
+        val next = (round((current + delta) * 10.0) / 10.0).coerceAtLeast(1.0)
+        weightKg = if (next % 1.0 == 0.0) "%.1f".format(Locale.US, next) else "%.1f".format(Locale.US, next)
+    }
+
+    fun adjustHeight(delta: Int) {
+        val current = heightCm.toDoubleOrNull() ?: 175.0
+        val next = (current + delta).coerceAtLeast(50.0)
+        heightCm = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(Locale.US, next)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
-            .padding(horizontal = 24.dp),
+            .background(AuthScreenBg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = "Profile Setup",
-            style = MaterialTheme.typography.headlineLarge,
-            color = TextPrimary
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = AuthWhite
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Personalize your metrics for accurate calorie and strength calculations.",
+            fontSize = 14.sp,
+            color = AuthMuted
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = BorderStroke(1.dp, CardBorder)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
+            border = BorderStroke(1.dp, AuthBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 FieldLabel(text = "Name")
@@ -424,70 +734,87 @@ fun ProfileSetupScreen(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "Name", color = TextMuted) },
+                    placeholder = { Text(text = "Name", color = AuthMuted) },
                     singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = gymTextFieldColors()
+                    shape = RoundedCornerShape(16.dp),
+                    colors = bentoTextFieldColors()
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                FieldLabel(text = "Birth Date")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FieldLabel(text = "Birth Date")
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(AuthVolt.copy(alpha = 0.16f))
+                            .border(1.dp, AuthVolt.copy(alpha = 0.4f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "Age: $calculatedAge",
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = AuthVolt
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 OutlinedTextField(
                     value = birthDateText,
                     onValueChange = { birthDateText = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "YYYY-MM-DD", color = TextMuted) },
+                    placeholder = { Text(text = "YYYY-MM-DD", color = AuthMuted) },
                     trailingIcon = {
                         TextButton(onClick = { showDatePicker = true }) {
-                            Text(text = "Pick", color = VoltAccent)
+                            Text(
+                                text = "Pick",
+                                color = AuthVolt,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = gymTextFieldColors()
+                    shape = RoundedCornerShape(16.dp),
+                    colors = bentoTextFieldColors()
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        FieldLabel(text = "Weight (kg)")
-                        OutlinedTextField(
-                            value = weightKg,
-                            onValueChange = { weightKg = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(text = "70.0", color = TextMuted) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = gymTextFieldColors()
-                        )
-                    }
+                    MetricStepperColumn(
+                        label = "Weight (kg)",
+                        value = weightKg,
+                        onValueChange = { weightKg = it },
+                        onDecrement = { adjustWeight(-0.5) },
+                        onIncrement = { adjustWeight(0.5) },
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        FieldLabel(text = "Height (cm)")
-                        OutlinedTextField(
-                            value = heightCm,
-                            onValueChange = { heightCm = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(text = "175.0", color = TextMuted) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = gymTextFieldColors()
-                        )
-                    }
+                    MetricStepperColumn(
+                        label = "Height (cm)",
+                        value = heightCm,
+                        onValueChange = { heightCm = it },
+                        onDecrement = { adjustHeight(-1) },
+                        onIncrement = { adjustHeight(1) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        val birthDateMillis = parseBirthDateMillis(birthDateText)
         val canSubmit = name.isNotBlank() &&
             birthDateMillis > 0L &&
             (weightKg.toDoubleOrNull() ?: 0.0) > 0.0 &&
@@ -505,18 +832,18 @@ fun ProfileSetupScreen(
             enabled = canSubmit,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
+                .height(56.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = VoltAccent,
+                containerColor = AuthVolt,
                 contentColor = OnVolt,
-                disabledContainerColor = InputSurface,
-                disabledContentColor = TextMuted
+                disabledContainerColor = AuthInputBg,
+                disabledContentColor = AuthMuted
             )
         ) {
             Text(
                 text = "Continue",
-                style = MaterialTheme.typography.labelLarge,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -542,12 +869,12 @@ fun ProfileSetupScreen(
                         showDatePicker = false
                     }
                 ) {
-                    Text(text = "Confirm", color = VoltAccent)
+                    Text(text = "Confirm", color = AuthVolt)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text(text = "Cancel", color = TextMuted)
+                    Text(text = "Cancel", color = AuthMuted)
                 }
             }
         ) {
@@ -557,24 +884,98 @@ fun ProfileSetupScreen(
 }
 
 @Composable
+private fun MetricStepperColumn(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        FieldLabel(text = label)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(AuthInputBg)
+                .border(1.dp, AuthBorder, RoundedCornerShape(16.dp))
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AuthCardBg)
+                    .clickable(onClick = onDecrement),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "-",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthWhite
+                )
+            }
+
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(AuthVolt),
+                textStyle = TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = AuthWhite,
+                    textAlign = TextAlign.Center
+                ),
+                modifier = Modifier.weight(1f)
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AuthCardBg)
+                    .clickable(onClick = onIncrement),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "+",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthVolt
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun FieldLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelMedium,
-        color = TextMuted,
-        modifier = Modifier.padding(bottom = 6.dp)
+        fontWeight = FontWeight.Bold,
+        color = AuthMuted
     )
 }
 
 @Composable
-private fun gymTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = TextPrimary,
-    unfocusedTextColor = TextPrimary,
-    focusedContainerColor = InputSurface,
-    unfocusedContainerColor = InputSurface,
-    focusedBorderColor = VoltAccent,
-    unfocusedBorderColor = CardBorder,
-    cursorColor = VoltAccent
+private fun bentoTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = AuthWhite,
+    unfocusedTextColor = AuthWhite,
+    focusedContainerColor = AuthInputBg,
+    unfocusedContainerColor = AuthInputBg,
+    focusedBorderColor = AuthVolt,
+    unfocusedBorderColor = AuthBorder,
+    cursorColor = AuthVolt
 )
 
 private fun parseBirthDateMillis(input: String): Long {
