@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,6 +73,7 @@ import com.mulocoolbot.gymtracker.ui.components.StatsBarIcon
 import com.mulocoolbot.gymtracker.ui.components.SystemPermissionsRequester
 import com.mulocoolbot.gymtracker.ui.home.HomeScreen
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
+import com.mulocoolbot.gymtracker.ui.intro.MFitOpeningIntro
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanScreen
 import com.mulocoolbot.gymtracker.ui.plan.WorkoutPlanViewModel
 import com.mulocoolbot.gymtracker.ui.settings.SettingsScreen
@@ -100,6 +102,13 @@ fun MainScaffold(
     )
     val authUiState by authViewModel.uiState.collectAsState()
 
+    if (authUiState.isOpeningPlaying) {
+        MFitOpeningIntro(
+            onOpeningFinished = { authViewModel.onOpeningAnimationFinished() }
+        )
+        return
+    }
+
     if (authUiState.isLoading) {
         Box(
             modifier = Modifier
@@ -111,60 +120,66 @@ fun MainScaffold(
 
     SystemPermissionsRequester()
 
-    when (authUiState.destination) {
-        AppStartDestination.WELCOME -> {
-            WelcomeScreen(
-                onBeginClick = authViewModel::onBeginFromWelcome
-            )
-        }
+    Crossfade(
+        targetState = authUiState.destination,
+        animationSpec = tween(260),
+        label = "AuthStartDestinationCrossfade"
+    ) { destination ->
+        when (destination) {
+            AppStartDestination.WELCOME -> {
+                WelcomeScreen(
+                    onBeginClick = { authViewModel.onBeginFromWelcome() }
+                )
+            }
 
-        AppStartDestination.SIGN_IN -> {
-            SignInScreen(
-                authStep = authUiState.authStep,
-                pendingEmail = authUiState.pendingEmail,
-                otpErrorMessage = authUiState.otpErrorMessage,
-                resendCountdownSeconds = authUiState.resendCountdownSeconds,
-                onGoogleAuthenticated = authViewModel::onGoogleAuthenticated,
-                onSendEmailOtp = { email ->
-                    authViewModel.requestEmailOtp(context = context, emailInput = email)
-                },
-                onVerifyEmailOtp = { otpCode ->
-                    authViewModel.verifyEmailOtp(otpInput = otpCode)
-                },
-                onResendEmailOtp = {
-                    authViewModel.requestEmailOtp(
-                        context = context,
-                        emailInput = authUiState.pendingEmail,
-                        isResend = true
-                    )
-                },
-                onBackToEmailInput = authViewModel::backToEmailInput,
-                onClearError = authViewModel::clearAuthError,
-                authEntryMode = authUiState.authEntryMode,
-                onSwitchAuthMode = authViewModel::setAuthEntryMode,
-                onBackToWelcome = authViewModel::onBackToWelcome
-            )
-        }
+            AppStartDestination.SIGN_IN -> {
+                SignInScreen(
+                    authStep = authUiState.authStep,
+                    pendingEmail = authUiState.pendingEmail,
+                    otpErrorMessage = authUiState.otpErrorMessage,
+                    resendCountdownSeconds = authUiState.resendCountdownSeconds,
+                    onGoogleAuthenticated = authViewModel::onGoogleAuthenticated,
+                    onSendEmailOtp = { email ->
+                        authViewModel.requestEmailOtp(context = context, emailInput = email)
+                    },
+                    onVerifyEmailOtp = { otpCode ->
+                        authViewModel.verifyEmailOtp(otpInput = otpCode)
+                    },
+                    onResendEmailOtp = {
+                        authViewModel.requestEmailOtp(
+                            context = context,
+                            emailInput = authUiState.pendingEmail,
+                            isResend = true
+                        )
+                    },
+                    onBackToEmailInput = authViewModel::backToEmailInput,
+                    onClearError = authViewModel::clearAuthError,
+                    authEntryMode = authUiState.authEntryMode,
+                    onSwitchAuthMode = authViewModel::setAuthEntryMode,
+                    onBackToWelcome = authViewModel::onBackToWelcome
+                )
+            }
 
-        AppStartDestination.PROFILE_SETUP -> {
-            val defaultName = authUiState.userProfile?.name
-                ?: authUiState.suggestedDisplayName
-                ?: authUiState.authSession.userEmail?.substringBefore("@")
-                ?: authUiState.authSession.googleEmail?.substringBefore("@")
-                ?: ""
-            ProfileSetupScreen(
-                initialName = defaultName,
-                onCompleteProfile = authViewModel::onSubmitProfile
-            )
-        }
+            AppStartDestination.PROFILE_SETUP -> {
+                val defaultName = authUiState.userProfile?.name
+                    ?: authUiState.suggestedDisplayName
+                    ?: authUiState.authSession.userEmail?.substringBefore("@")
+                    ?: authUiState.authSession.googleEmail?.substringBefore("@")
+                    ?: ""
+                ProfileSetupScreen(
+                    initialName = defaultName,
+                    onCompleteProfile = authViewModel::onSubmitProfile
+                )
+            }
 
-        AppStartDestination.MAIN_HOME -> {
-            AuthenticatedMainContent(
-                repository = repository,
-                timerController = timerController,
-                authUiState = authUiState,
-                authViewModel = authViewModel
-            )
+            AppStartDestination.MAIN_HOME -> {
+                AuthenticatedMainContent(
+                    repository = repository,
+                    timerController = timerController,
+                    authUiState = authUiState,
+                    authViewModel = authViewModel
+                )
+            }
         }
     }
 }

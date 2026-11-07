@@ -43,6 +43,7 @@ enum class EmailAuthStep {
 
 data class AuthOnboardingUiState(
     val isLoading: Boolean = true,
+    val isOpeningPlaying: Boolean = true,
     val authSession: AuthSession = AuthSession(),
     val userProfile: UserProfileEntity? = null,
     val hasPassedWelcome: Boolean = false,
@@ -57,6 +58,7 @@ data class AuthOnboardingUiState(
 )
 
 private data class OtpFlowInternalState(
+    val isOpeningPlaying: Boolean = true,
     val hasPassedWelcome: Boolean = false,
     val authEntryMode: AuthEntryMode = AuthEntryMode.SIGN_IN,
     val authStep: EmailAuthStep = EmailAuthStep.EMAIL_INPUT,
@@ -85,6 +87,7 @@ class AuthOnboardingViewModel(
     ) { session, profile, otpState ->
         AuthOnboardingUiState(
             isLoading = false,
+            isOpeningPlaying = otpState.isOpeningPlaying,
             authSession = session,
             userProfile = profile,
             hasPassedWelcome = otpState.hasPassedWelcome,
@@ -104,7 +107,7 @@ class AuthOnboardingViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = AuthOnboardingUiState(isLoading = true)
+        initialValue = AuthOnboardingUiState(isLoading = true, isOpeningPlaying = true)
     )
 
     init {
@@ -113,6 +116,12 @@ class AuthOnboardingViewModel(
             if (initialSession.isAuthenticated && initialSession.isProfileCompleted) {
                 repository.evaluateStreakOnLaunch(LocalDate.now().toEpochDay())
             }
+        }
+    }
+
+    fun onOpeningAnimationFinished() {
+        otpFlowState.update { current ->
+            current.copy(isOpeningPlaying = false)
         }
     }
 
@@ -449,16 +458,17 @@ class AuthOnboardingViewModel(
     }
 
     companion object {
+        @Suppress("UNUSED_PARAMETER")
         fun resolveDestination(
             session: AuthSession,
-            profile: UserProfileEntity?,
+            profile: UserProfileEntity? = null,
             hasPassedWelcome: Boolean = true
         ): AppStartDestination {
             return when {
                 !session.isAuthenticated -> {
                     if (hasPassedWelcome) AppStartDestination.SIGN_IN else AppStartDestination.WELCOME
                 }
-                !session.isProfileCompleted || profile == null -> AppStartDestination.PROFILE_SETUP
+                !session.isProfileCompleted -> AppStartDestination.PROFILE_SETUP
                 else -> AppStartDestination.MAIN_HOME
             }
         }
