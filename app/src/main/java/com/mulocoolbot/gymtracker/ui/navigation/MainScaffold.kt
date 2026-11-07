@@ -265,7 +265,7 @@ private fun AuthenticatedMainContent(
                 composable(BottomNavTab.WORKOUT.route) {
                     val workoutState by workoutViewModel.uiState.collectAsState()
                     val activePlanName = if (homeState.selectedDayPlan.isRestDay) {
-                        "Workout"
+                        workoutState.todayPlanName
                     } else {
                         homeState.selectedDayPlan.planName
                     }
@@ -278,14 +278,14 @@ private fun AuthenticatedMainContent(
                                 runCatching { RestTimerService.stopRestTimer(context) }
                             }
                         },
-                        onExerciseNameChange = workoutViewModel::updateExerciseInput,
+                        onExerciseNameChange = workoutViewModel::onExerciseNameChanged,
                         onWeightChange = workoutViewModel::updateWeightInput,
                         onRepsChange = workoutViewModel::updateRepsInput,
                         onSelectSetType = workoutViewModel::selectSetType,
                         onAddSet = {
-                            workoutViewModel.addSet { durationMillis ->
+                            workoutViewModel.addSet { durationMillis, label ->
                                 runCatching {
-                                    RestTimerService.startRestTimer(context, durationMillis)
+                                    RestTimerService.startRestTimer(context, durationMillis, label)
                                 }
                             }
                         },
@@ -294,6 +294,25 @@ private fun AuthenticatedMainContent(
                                 runCatching {
                                     RestTimerService.stopRestTimer(context)
                                 }
+                            }
+                        },
+                        onSelectExerciseSuggestion = workoutViewModel::selectExerciseSuggestion,
+                        onSelectMuscleGroup = workoutViewModel::selectMuscleGroup,
+                        onStepWeight = workoutViewModel::stepWeight,
+                        onStepReps = workoutViewModel::stepReps,
+                        onDeleteSessionSet = workoutViewModel::deleteSessionSet,
+                        onAdjustRestTimer = { deltaSeconds ->
+                            workoutViewModel.adjustRestTimer(deltaSeconds) { delta ->
+                                runCatching {
+                                    RestTimerService.adjustRestTimer(context, delta)
+                                }
+                            }
+                        },
+                        onRequestFinishWorkout = workoutViewModel::requestFinishWorkout,
+                        onDismissFinishDialog = workoutViewModel::dismissFinishDialog,
+                        onConfirmFinishWorkout = {
+                            workoutViewModel.stopWorkout(planName = activePlanName) {
+                                runCatching { RestTimerService.stopRestTimer(context) }
                             }
                         }
                     )

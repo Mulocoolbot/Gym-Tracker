@@ -195,7 +195,8 @@ class GymRepository(
         startMillis: Long,
         endMillis: Long,
         sets: List<WorkoutSetEntity>,
-        todayEpochDay: Long
+        todayEpochDay: Long,
+        muscleGroupsByExercise: Map<String, String> = emptyMap()
     ) {
         val profile = dao.getUserProfile()
         val calories = WorkoutCalculator.calculateCalories(
@@ -234,7 +235,9 @@ class GymRepository(
                 .map { (exerciseName, exerciseSets) ->
                     ExerciseHistoryEntity(
                         normalizedName = exerciseName,
-                        muscleGroup = cleanPlanName,
+                        muscleGroup = muscleGroupsByExercise[exerciseName]
+                            ?.takeIf { it.isNotBlank() }
+                            ?: cleanPlanName,
                         lastUsedMillis = exerciseSets.maxOf { it.timestampMillis }
                     )
                 }

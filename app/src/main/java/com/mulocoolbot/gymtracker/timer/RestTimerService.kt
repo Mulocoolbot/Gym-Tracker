@@ -33,6 +33,7 @@ class RestTimerService : Service() {
 
     private var tickerJob: Job? = null
     private var lastNotifiedSeconds: Int = -1
+    private var lastSyncedEndTimeMillis: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -48,7 +49,12 @@ class RestTimerService : Service() {
         when (intent?.action) {
             ACTION_START_TIMER -> {
                 val durationMillis = intent.getLongExtra(EXTRA_DURATION_MILLIS, 120_000L)
-                handleStartTimer(durationMillis)
+                val label = intent.getStringExtra(EXTRA_TIMER_LABEL) ?: "Rest Timer"
+                handleStartTimer(durationMillis, label)
+            }
+            ACTION_ADJUST_TIMER -> {
+                val deltaSeconds = intent.getIntExtra(EXTRA_DELTA_SECONDS, 0)
+                handleAdjustTimer(deltaSeconds)
             }
             ACTION_TRIGGER_ALARM -> handleTriggerAlarm()
             ACTION_SKIP_TIMER, ACTION_DISMISS_ALARM -> handleStopAndReset()
@@ -63,19 +69,57 @@ class RestTimerService : Service() {
         super.onDestroy()
     }
 
-    private fun handleStartTimer(durationMillis: Long) {
+    private fun handleStartTimer(durationMillis: Long, label: String) {
         tickerJob?.cancel()
         alarmPlayer.stopAlarm()
 
-        val now = System.currentTimeMillis()
-        controller.startTimer(durationMillis = durationMillis, currentMillis = now)
-        val initialState = controller.state.value
-        lastNotifiedSeconds = initialState.remainingSeconds
+        val currentState = controller.state.value
+        if (!currentState.isRunning || currentState.endTimeMillis == lastSyncedEndTimeMillis) {
+            val now = System.currentTimeMillis()
+            controller.startTimer(
+                durationMillis = durationMillis,
+                label = label,
+                currentMillis = now
+            )
+        }
+        val activeState = controller.state.value
+        lastNotifiedSeconds = activeState.remainingSeconds
+        lastSyncedEndTimeMillis = activeState.endTimeMillis
 
-        scheduleBackupAlarm(initialState.endTimeMillis)
-        val notification = buildCountdownNotification(initialState.remainingSeconds)
+        scheduleBackupAlarm(activeState.endTimeMillis)
+        val notification = buildCountdownNotification(
+            remainingSeconds = activeState.remainingSeconds,
+            title = activeState.label
+        )
         promoteToForeground(notification)
         startTicker()
+    }
+
+    private fun handleAdjustTimer(deltaSeconds: Int) {
+        if (deltaSeconds == 0) return
+
+        val beforeState = controller.state.value
+        if (beforeState.isRunning && beforeState.endTimeMillis == lastSyncedEndTimeMillis) {
+            controller.adjustTimer(deltaSeconds = deltaSeconds)
+        }
+
+        val updatedState = controller.state.value
+        lastSyncedEndTimeMillis = updatedState.endTimeMillis
+
+        if (updatedState.alarmRinging || !updatedState.isRunning || updatedState.remainingSeconds == 0) {
+            cancelBackupAlarm()
+            handleTriggerAlarm()
+        } else {
+            lastNotifiedSeconds = updatedState.remainingSeconds
+            scheduleBackupAlarm(updatedState.endTimeMillis)
+            notificationManager.notify(
+                NOTIFICATION_ID,
+                buildCountdownNotification(
+                    remainingSeconds = updatedState.remainingSeconds,
+                    title = updatedState.label
+                )
+            )
+        }
     }
 
     private fun startTicker() {
@@ -92,7 +136,10 @@ class RestTimerService : Service() {
                     lastNotifiedSeconds = currentState.remainingSeconds
                     notificationManager.notify(
                         NOTIFICATION_ID,
-                        buildCountdownNotification(currentState.remainingSeconds)
+                        buildCountdownNotification(
+                            remainingSeconds = currentState.remainingSeconds,
+                            title = currentState.label
+                        )
                     )
                 }
             }
@@ -115,6 +162,7 @@ class RestTimerService : Service() {
         cancelBackupAlarm()
         alarmPlayer.stopAlarm()
         controller.dismissOrSkip()
+        lastSyncedEndTimeMillis = 0L
         notificationManager.cancel(NOTIFICATION_ID)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -179,7 +227,10 @@ class RestTimerService : Service() {
         )
     }
 
-    private fun buildCountdownNotification(remainingSeconds: Int): Notification {
+    private fun buildCountdownNotification(
+        remainingSeconds: Int,
+        title: String = "Rest Timer"
+    ): Notification {
         val skipIntent = Intent(this, RestTimerService::class.java).apply {
             action = ACTION_SKIP_TIMER
         }
@@ -192,7 +243,7 @@ class RestTimerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID_COUNTDOWN)
             .setSmallIcon(R.drawable.ic_notification_timer)
-            .setContentTitle("Rest Timer")
+            .setContentTitle(title)
             .setContentText(RestTimerController.formatMMSS(remainingSeconds))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -247,10 +298,13 @@ class RestTimerService : Service() {
 
     companion object {
         const val ACTION_START_TIMER = "com.mulocoolbot.gymtracker.action.START_TIMER"
+        const val ACTION_ADJUST_TIMER = "com.mulocoolbot.gymtracker.action.ADJUST_TIMER"
         const val ACTION_SKIP_TIMER = "com.mulocoolbot.gymtracker.action.SKIP_TIMER"
         const val ACTION_DISMISS_ALARM = "com.mulocoolbot.gymtracker.action.DISMISS_ALARM"
         const val ACTION_TRIGGER_ALARM = "com.mulocoolbot.gymtracker.action.TRIGGER_ALARM"
         const val EXTRA_DURATION_MILLIS = "com.mulocoolbot.gymtracker.extra.DURATION_MILLIS"
+        const val EXTRA_TIMER_LABEL = "com.mulocoolbot.gymtracker.extra.TIMER_LABEL"
+        const val EXTRA_DELTA_SECONDS = "com.mulocoolbot.gymtracker.extra.DELTA_SECONDS"
 
         private const val CHANNEL_ID_COUNTDOWN = "rest_timer_countdown_channel"
         private const val CHANNEL_ID_ALARM = "rest_timer_alarm_channel"
@@ -259,12 +313,25 @@ class RestTimerService : Service() {
         private const val SKIP_REQUEST_CODE = 2002
         private const val DISMISS_REQUEST_CODE = 2003
 
-        fun startRestTimer(context: Context, durationMillis: Long) {
+        fun startRestTimer(
+            context: Context,
+            durationMillis: Long,
+            label: String = "Rest Timer"
+        ) {
             val intent = Intent(context, RestTimerService::class.java).apply {
                 action = ACTION_START_TIMER
                 putExtra(EXTRA_DURATION_MILLIS, durationMillis)
+                putExtra(EXTRA_TIMER_LABEL, label)
             }
             ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun adjustRestTimer(context: Context, deltaSeconds: Int) {
+            val intent = Intent(context, RestTimerService::class.java).apply {
+                action = ACTION_ADJUST_TIMER
+                putExtra(EXTRA_DELTA_SECONDS, deltaSeconds)
+            }
+            runCatching { context.startService(intent) }
         }
 
         fun stopRestTimer(context: Context) {
@@ -287,4 +354,3 @@ class RestTimerService : Service() {
         }
     }
 }
-

@@ -11,6 +11,7 @@ class RestTimerController {
 
     fun startTimer(
         durationMillis: Long,
+        label: String = "Rest Timer",
         currentMillis: Long = System.currentTimeMillis()
     ) {
         val totalSeconds = (durationMillis / 1000L).toInt().coerceAtLeast(0)
@@ -19,8 +20,40 @@ class RestTimerController {
             totalSeconds = totalSeconds,
             remainingSeconds = totalSeconds,
             endTimeMillis = currentMillis + durationMillis,
-            alarmRinging = false
+            alarmRinging = false,
+            label = label
         )
+    }
+
+    fun adjustTimer(
+        deltaSeconds: Int,
+        currentMillis: Long = System.currentTimeMillis()
+    ) {
+        val current = _state.value
+        if (!current.isRunning) return
+
+        val updatedEndTimeMillis = (current.endTimeMillis + deltaSeconds * 1000L)
+            .coerceAtLeast(currentMillis)
+        val remainingSeconds = ((updatedEndTimeMillis - currentMillis + 999L) / 1000L)
+            .toInt()
+            .coerceAtLeast(0)
+        val updatedTotalSeconds = maxOf(current.totalSeconds, remainingSeconds)
+
+        if (remainingSeconds == 0) {
+            _state.value = current.copy(
+                isRunning = false,
+                totalSeconds = updatedTotalSeconds,
+                remainingSeconds = 0,
+                endTimeMillis = updatedEndTimeMillis,
+                alarmRinging = true
+            )
+        } else {
+            _state.value = current.copy(
+                totalSeconds = updatedTotalSeconds,
+                remainingSeconds = remainingSeconds,
+                endTimeMillis = updatedEndTimeMillis
+            )
+        }
     }
 
     fun tick(currentMillis: Long = System.currentTimeMillis()) {
@@ -48,7 +81,8 @@ class RestTimerController {
             totalSeconds = 0,
             remainingSeconds = 0,
             endTimeMillis = 0L,
-            alarmRinging = false
+            alarmRinging = false,
+            label = "Rest Timer"
         )
     }
 
@@ -63,4 +97,3 @@ class RestTimerController {
         }
     }
 }
-

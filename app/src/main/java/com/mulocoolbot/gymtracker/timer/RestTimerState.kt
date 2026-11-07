@@ -5,6 +5,6 @@ data class RestTimerState(
     val totalSeconds: Int = 0,
     val remainingSeconds: Int = 0,
     val endTimeMillis: Long = 0L,
-    val alarmRinging: Boolean = false
+    val alarmRinging: Boolean = false,
+    val label: String = "Rest Timer"
 )
-
