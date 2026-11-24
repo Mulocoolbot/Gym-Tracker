@@ -1,8 +1,12 @@
 plugins {
-    id("com.android.application") version "8.5.2" apply false
-    id("org.jetbrains.kotlin.android") version "2.0.0" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
-    id("com.google.devtools.ksp") version "2.0.0-1.0.24" apply false
-    id("com.google.gms.google-services") version "4.4.2" apply false
+    alias(libs.plugins.androidApplication) apply false
+    alias(libs.plugins.androidLibrary) apply false
+    alias(libs.plugins.kotlinMultiplatform) apply false
+    alias(libs.plugins.kotlinAndroid) apply false
+    alias(libs.plugins.composeMultiplatform) apply false
+    alias(libs.plugins.composeCompiler) apply false
+    alias(libs.plugins.kotlinSerialization) apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.androidxRoom) apply false
+    alias(libs.plugins.googleServices) apply false
 }
-

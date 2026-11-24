@@ -12,4 +12,3 @@ val TextPrimary = Color(0xFFF5F7FA)
 val TextMuted = Color(0xFF8E95A5)
 val DangerRed = Color(0xFFEF4444)
 val SuccessGreen = Color(0xFF10B981)
-

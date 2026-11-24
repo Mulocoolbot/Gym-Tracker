@@ -34,4 +34,3 @@ fun GymTrackerTheme(content: @Composable () -> Unit) {
         content = content
     )
 }
-

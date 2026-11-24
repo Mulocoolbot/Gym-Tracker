@@ -137,4 +137,3 @@ val GymTypography = Typography(
         color = TextMuted
     )
 )
-

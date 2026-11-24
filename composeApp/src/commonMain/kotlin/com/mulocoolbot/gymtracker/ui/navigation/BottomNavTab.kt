@@ -10,4 +10,3 @@ enum class BottomNavTab(
     STATS(route = "stats", label = "Stats"),
     SETTINGS(route = "settings", label = "Settings")
 }
-
