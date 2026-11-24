@@ -69,4 +69,3 @@ data class WorkoutSetEntity(
     val e1rm: Double,
     val timestampMillis: Long
 )
-

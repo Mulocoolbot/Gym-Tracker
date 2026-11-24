@@ -112,4 +112,3 @@ interface GymDao {
     @Query("SELECT * FROM workout_set ORDER BY setId ASC")
     suspend fun getAllSets(): List<WorkoutSetEntity>
 }
-

@@ -1,6 +1,6 @@
 package com.mulocoolbot.gymtracker.data.auth
 
-import java.util.Locale
+import kotlinx.datetime.Clock
 
 enum class OtpRequestResult {
     SENT,
@@ -31,16 +31,15 @@ class EmailOtpManager {
         private set
 
     fun isValidEmail(email: String): Boolean {
-        val trimmed = email.trim()
-        return EMAIL_REGEX.matches(trimmed)
+        return EMAIL_REGEX.matches(email.trim())
     }
 
     fun generateOtp(
         email: String,
-        currentMillis: Long = System.currentTimeMillis(),
+        currentMillis: Long = Clock.System.now().toEpochMilliseconds(),
         forceResend: Boolean = false
     ): Pair<OtpRequestResult, String?> {
-        val normalizedEmail = email.trim().lowercase(Locale.US)
+        val normalizedEmail = email.trim().lowercase()
         if (!isValidEmail(normalizedEmail)) {
             return OtpRequestResult.INVALID_EMAIL to null
         }
@@ -60,9 +59,9 @@ class EmailOtpManager {
     fun verifyOtp(
         email: String,
         inputCode: String,
-        currentMillis: Long = System.currentTimeMillis()
+        currentMillis: Long = Clock.System.now().toEpochMilliseconds()
     ): OtpVerifyResult {
-        val normalizedEmail = email.trim().lowercase(Locale.US)
+        val normalizedEmail = email.trim().lowercase()
         if (targetEmail.isEmpty() || code.isEmpty() || targetEmail != normalizedEmail) {
             return OtpVerifyResult.NO_PENDING_OTP
         }
@@ -84,7 +83,7 @@ class EmailOtpManager {
         return OtpVerifyResult.SUCCESS
     }
 
-    fun remainingCooldownSeconds(currentMillis: Long = System.currentTimeMillis()): Int {
+    fun remainingCooldownSeconds(currentMillis: Long = Clock.System.now().toEpochMilliseconds()): Int {
         val remainingMillis = (resendAvailableAtMillis - currentMillis).coerceAtLeast(0L)
         return ((remainingMillis + 999L) / 1_000L).toInt()
     }
@@ -102,4 +101,3 @@ class EmailOtpManager {
         private val EMAIL_REGEX = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
     }
 }
-

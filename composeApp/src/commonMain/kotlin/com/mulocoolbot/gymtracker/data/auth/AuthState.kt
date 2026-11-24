@@ -12,3 +12,9 @@ data class AuthSession(
     val isAuthenticated: Boolean
         get() = uid.isNotBlank() && (isGoogleLinked || isEmailLinked)
 }
+
+data class RestTimerPreferences(
+    val warmupSeconds: Int = 60,
+    val normalSeconds: Int = 120,
+    val finalSeconds: Int = 180
+)

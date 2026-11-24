@@ -2,7 +2,8 @@ package com.mulocoolbot.gymtracker.util
 
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.isoDayNumber
 
 object StreakEvaluator {
 
@@ -47,7 +48,6 @@ object StreakEvaluator {
     }
 
     private fun getDayOfWeekIndex(epochDay: Long): Int {
-        return LocalDate.ofEpochDay(epochDay).dayOfWeek.value % 7
+        return LocalDate.fromEpochDays(epochDay.toInt()).dayOfWeek.isoDayNumber % 7
     }
 }
-

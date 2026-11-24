@@ -1,32 +1,25 @@
 package com.mulocoolbot.gymtracker.data.auth
 
-import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import com.google.firebase.auth.FirebaseAuth
-import java.util.Locale
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-
-private val Context.authDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "auth_session_prefs"
-)
 
 enum class AuthEntryMode {
     SIGN_IN,
     LOG_IN
 }
 
-class SessionPreferences(private val dataStore: DataStore<Preferences>) {
-
-    constructor(context: Context) : this(context.applicationContext.authDataStore)
+class SessionPreferences(
+    private val dataStore: DataStore<Preferences>,
+    private val onRemoteAuthSync: ((email: String, password: String, isRegister: Boolean) -> Unit)? = null
+) {
 
     val authSessionFlow: Flow<AuthSession> = dataStore.data.map { prefs ->
         AuthSession(
@@ -44,6 +37,26 @@ class SessionPreferences(private val dataStore: DataStore<Preferences>) {
         extractRegisteredEmails(prefs)
     }
 
+    val restTimerPreferencesFlow: Flow<RestTimerPreferences> = dataStore.data.map { prefs ->
+        RestTimerPreferences(
+            warmupSeconds = prefs[KEY_REST_WARMUP_SECONDS] ?: 60,
+            normalSeconds = prefs[KEY_REST_NORMAL_SECONDS] ?: 120,
+            finalSeconds = prefs[KEY_REST_FINAL_SECONDS] ?: 180
+        )
+    }
+
+    suspend fun updateRestTimerDurations(
+        warmupSeconds: Int,
+        normalSeconds: Int,
+        finalSeconds: Int
+    ) {
+        dataStore.edit { prefs ->
+            prefs[KEY_REST_WARMUP_SECONDS] = warmupSeconds.coerceAtLeast(1)
+            prefs[KEY_REST_NORMAL_SECONDS] = normalSeconds.coerceAtLeast(1)
+            prefs[KEY_REST_FINAL_SECONDS] = finalSeconds.coerceAtLeast(1)
+        }
+    }
+
     suspend fun isEmailRegistered(email: String): Boolean {
         val normalized = normalizeEmail(email)
         if (normalized.isEmpty()) return false
@@ -56,7 +69,7 @@ class SessionPreferences(private val dataStore: DataStore<Preferences>) {
         val lowerEmail = normalizeEmail(normalizedEmail)
         if (normalizedEmail.isEmpty() || password.length < 6) return false
 
-        syncFirebaseCreateUser(normalizedEmail, password)
+        onRemoteAuthSync?.invoke(normalizedEmail, password, true)
 
         dataStore.edit { prefs ->
             val newUid = generateUid(normalizedEmail)
@@ -115,7 +128,7 @@ class SessionPreferences(private val dataStore: DataStore<Preferences>) {
         }
 
         if (authenticated) {
-            syncFirebaseSignIn(normalizedEmail, password)
+            onRemoteAuthSync?.invoke(normalizedEmail, password, false)
         }
         return authenticated
     }
@@ -232,30 +245,14 @@ class SessionPreferences(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    private fun normalizeEmail(email: String): String {
-        return email.trim().lowercase(Locale.US)
-    }
+    private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
-    private fun syncFirebaseCreateUser(email: String, password: String) {
-        runCatching {
-            FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
-        }
-    }
-
-    private fun syncFirebaseSignIn(email: String, password: String) {
-        runCatching {
-            FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
-        }
-    }
-
-    private fun generateUid(seedEmail: String): String {
-        return computeUidForEmail(seedEmail)
-    }
+    private fun generateUid(seedEmail: String): String = computeUidForEmail(seedEmail)
 
     companion object {
         fun computeUidForEmail(seedEmail: String): String {
-            if (seedEmail.isBlank()) return UUID.randomUUID().toString()
-            return UUID.nameUUIDFromBytes(seedEmail.trim().lowercase(Locale.US).toByteArray()).toString()
+            if (seedEmail.isBlank()) return UuidGenerator.randomUuidV4()
+            return UuidGenerator.nameUuidV3FromBytes(seedEmail.trim().lowercase().encodeToByteArray())
         }
 
         private val KEY_UID = stringPreferencesKey("uid")
@@ -269,5 +266,8 @@ class SessionPreferences(private val dataStore: DataStore<Preferences>) {
         private val KEY_IS_GOOGLE_LINKED = booleanPreferencesKey("is_google_linked")
         private val KEY_IS_EMAIL_LINKED = booleanPreferencesKey("is_email_linked")
         private val KEY_IS_PROFILE_COMPLETED = booleanPreferencesKey("is_profile_completed")
+        private val KEY_REST_WARMUP_SECONDS = intPreferencesKey("rest_warmup_seconds")
+        private val KEY_REST_NORMAL_SECONDS = intPreferencesKey("rest_normal_seconds")
+        private val KEY_REST_FINAL_SECONDS = intPreferencesKey("rest_final_seconds")
     }
 }
