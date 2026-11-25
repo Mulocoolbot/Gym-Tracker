@@ -36,6 +36,8 @@ kotlin {
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
             implementation(libs.jetbrains.navigation.compose)
+            api(libs.jetbrains.lifecycle.viewmodel.compose)
+            implementation(libs.jetbrains.lifecycle.runtime.compose)
             api(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             api(libs.androidx.datastore.preferences.core)

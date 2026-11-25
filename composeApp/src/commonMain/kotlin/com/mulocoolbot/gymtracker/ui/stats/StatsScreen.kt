@@ -1,7 +1,5 @@
 package com.mulocoolbot.gymtracker.ui.stats
 
-import android.graphics.Paint
-import android.graphics.Typeface
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -51,12 +49,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -66,7 +66,8 @@ import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.SuccessGreen
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import kotlin.math.ceil
 import kotlin.math.hypot
 
 private val StatsCardBg = Color(0xFF14161B)
@@ -392,7 +393,7 @@ private fun StrengthProgressBentoCard(
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "${option.muscleGroup} · Best ${formatStatNumber(option.bestE1rm)} kg",
+                                            text = "${option.muscleGroup} · Best ${formatCompactNumber(option.bestE1rm)} kg",
                                             fontSize = 11.sp,
                                             color = StatsMuted
                                         )
@@ -438,7 +439,7 @@ private fun StrengthProgressBentoCard(
                 ) {
                     Column {
                         Text(
-                            text = "${activePoint.dateLabel.uppercase(Locale.US)} · SELECTED SET",
+                            text = "${activePoint.dateLabel.uppercase()} · SELECTED SET",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp,
@@ -463,7 +464,7 @@ private fun StrengthProgressBentoCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${formatStatNumber(activePoint.e1rm)} kg",
+                            text = "${formatCompactNumber(activePoint.e1rm)} kg",
                             fontSize = 18.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
@@ -528,9 +529,27 @@ private fun InteractiveE1rmLineChart(
 ) {
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
     val horizontalPadPx = with(density) { 28.dp.toPx() }
     val topPadPx = with(density) { 28.dp.toPx() }
     val bottomPadPx = with(density) { 26.dp.toPx() }
+
+    val valueLabelStyle = remember {
+        TextStyle(
+            color = StatsWhite,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium
+        )
+    }
+    val axisLabelStyle = remember {
+        TextStyle(
+            color = StatsMuted,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Normal
+        )
+    }
 
     Canvas(
         modifier = Modifier
@@ -614,21 +633,12 @@ private fun InteractiveE1rmLineChart(
             )
         }
 
-        val valueLabelPaint = Paint().apply {
-            isAntiAlias = true
-            color = android.graphics.Color.parseColor("#FFFFFF")
-            textAlign = Paint.Align.CENTER
-            textSize = 11.dp.toPx()
-            typeface = Typeface.MONOSPACE
-        }
-
-        val axisLabelPaint = Paint().apply {
-            isAntiAlias = true
-            color = android.graphics.Color.parseColor("#8C92A4")
-            textAlign = Paint.Align.CENTER
-            textSize = 10.dp.toPx()
-            typeface = Typeface.MONOSPACE
-        }
+        val visibleLabelIndices = computeVisibleChartLabelIndices(
+            pointCount = points.size,
+            selectedIndex = selectedPointIndex,
+            chartWidthPx = chartWidth,
+            minSpacingPx = 44.dp.toPx()
+        )
 
         offsets.forEachIndexed { index, pointOffset ->
             val isSelected = index == selectedPointIndex
@@ -662,25 +672,65 @@ private fun InteractiveE1rmLineChart(
             }
 
             val point = points[index]
-            val nodeLabel = "${formatStatNumber(point.e1rm)}"
-            drawContext.canvas.nativeCanvas.drawText(
-                nodeLabel,
-                pointOffset.x,
-                (pointOffset.y - 12.dp.toPx()).coerceAtLeast(14.dp.toPx()),
-                valueLabelPaint
-            )
+            if (index in visibleLabelIndices || isSelected) {
+                val valueLayout = textMeasurer.measure(
+                    text = formatCompactNumber(point.e1rm),
+                    style = valueLabelStyle
+                )
+                val valueX = (pointOffset.x - valueLayout.size.width / 2f)
+                    .coerceIn(0f, (size.width - valueLayout.size.width).coerceAtLeast(0f))
+                val valueY = (pointOffset.y - 10.dp.toPx() - valueLayout.size.height)
+                    .coerceAtLeast(2.dp.toPx())
+                drawText(
+                    textLayoutResult = valueLayout,
+                    topLeft = Offset(valueX, valueY)
+                )
+            }
 
-            drawContext.canvas.nativeCanvas.drawText(
-                point.dateLabel,
-                pointOffset.x,
-                size.height - 6.dp.toPx(),
-                axisLabelPaint
-            )
+            if (index in visibleLabelIndices) {
+                val axisLayout = textMeasurer.measure(
+                    text = point.dateLabel,
+                    style = axisLabelStyle
+                )
+                val axisX = (pointOffset.x - axisLayout.size.width / 2f)
+                    .coerceIn(0f, (size.width - axisLayout.size.width).coerceAtLeast(0f))
+                val axisY = (size.height - axisLayout.size.height - 2.dp.toPx())
+                    .coerceAtLeast(0f)
+                drawText(
+                    textLayoutResult = axisLayout,
+                    topLeft = Offset(axisX, axisY)
+                )
+            }
         }
     }
 }
 
-private fun computeChartNodeOffsets(
+internal fun computeVisibleChartLabelIndices(
+    pointCount: Int,
+    selectedIndex: Int,
+    chartWidthPx: Float,
+    minSpacingPx: Float
+): Set<Int> {
+    if (pointCount <= 0) return emptySet()
+    if (pointCount <= 2) return (0 until pointCount).toSet()
+    val safeChartWidth = chartWidthPx.coerceAtLeast(1f)
+    val stepPx = safeChartWidth / (pointCount - 1).toFloat()
+    val stride = if (stepPx >= minSpacingPx || minSpacingPx <= 0f) {
+        1
+    } else {
+        ceil(minSpacingPx / stepPx).toInt().coerceAtLeast(1)
+    }
+    val visible = linkedSetOf(0, pointCount - 1)
+    if (selectedIndex in 0 until pointCount) {
+        visible.add(selectedIndex)
+    }
+    for (i in 0 until pointCount step stride) {
+        visible.add(i)
+    }
+    return visible
+}
+
+internal fun computeChartNodeOffsets(
     points: List<ChartPointUi>,
     width: Float,
     height: Float,
@@ -835,7 +885,7 @@ private fun MuscleHeatmapBentoCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
@@ -844,14 +894,18 @@ private fun MuscleHeatmapBentoCard(
                     .padding(16.dp)
             ) {
                 Row(
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     LegendDotItem(label = "High", color = StatsVolt)
+                    Spacer(modifier = Modifier.width(10.dp))
                     LegendDotItem(label = "Med", color = StatsMedVolt)
+                    Spacer(modifier = Modifier.width(10.dp))
                     LegendDotItem(label = "0", color = StatsZeroMuscle)
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 InteractiveAnatomicalCanvas(
                     orientation = uiState.heatmapOrientation,
@@ -921,7 +975,7 @@ private fun InteractiveAnatomicalCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(240.dp)
+            .height(228.dp)
             .pointerInput(orientation) {
                 detectTapGestures { tapOffset ->
                     val regions = buildAnatomicalRegions(
@@ -946,12 +1000,13 @@ private fun InteractiveAnatomicalCanvas(
             }
     ) {
         val cx = size.width / 2f
-        val h = size.height
+        val scale = minOf(size.height, size.width / 0.48f)
+        val topOffset = (size.height - scale) / 2f
 
         drawCircle(
             color = StatsZeroMuscle,
-            radius = h * 0.052f,
-            center = Offset(cx, h * 0.065f)
+            radius = scale * 0.052f,
+            center = Offset(cx, topOffset + scale * 0.065f)
         )
 
         val regions = buildAnatomicalRegions(
@@ -996,42 +1051,43 @@ private fun DrawScope.drawMuscleRegionRect(
     }
 }
 
-private fun buildAnatomicalRegions(
+internal fun buildAnatomicalRegions(
     orientation: HeatmapOrientation,
     width: Float,
     height: Float
 ): List<Pair<String, Rect>> {
     val cx = width / 2f
-    val h = height
+    val s = minOf(height, width / 0.48f)
+    val top = (height - s) / 2f
 
     return if (orientation == HeatmapOrientation.FRONT) {
         listOf(
-            "SHOULDERS" to Rect(cx - h * 0.175f, h * 0.14f, cx - h * 0.105f, h * 0.24f),
-            "SHOULDERS" to Rect(cx + h * 0.105f, h * 0.14f, cx + h * 0.175f, h * 0.24f),
-            "CHEST" to Rect(cx - h * 0.095f, h * 0.14f, cx - h * 0.006f, h * 0.26f),
-            "CHEST" to Rect(cx + h * 0.006f, h * 0.14f, cx + h * 0.095f, h * 0.26f),
-            "BICEPS" to Rect(cx - h * 0.18f, h * 0.255f, cx - h * 0.115f, h * 0.42f),
-            "BICEPS" to Rect(cx + h * 0.115f, h * 0.255f, cx + h * 0.18f, h * 0.42f),
-            "ABS" to Rect(cx - h * 0.08f, h * 0.275f, cx + h * 0.08f, h * 0.475f),
-            "QUADS" to Rect(cx - h * 0.095f, h * 0.495f, cx - h * 0.01f, h * 0.82f),
-            "QUADS" to Rect(cx + h * 0.01f, h * 0.495f, cx + h * 0.095f, h * 0.82f)
+            "SHOULDERS" to Rect(cx - s * 0.175f, top + s * 0.14f, cx - s * 0.105f, top + s * 0.24f),
+            "SHOULDERS" to Rect(cx + s * 0.105f, top + s * 0.14f, cx + s * 0.175f, top + s * 0.24f),
+            "CHEST" to Rect(cx - s * 0.095f, top + s * 0.14f, cx - s * 0.006f, top + s * 0.26f),
+            "CHEST" to Rect(cx + s * 0.006f, top + s * 0.14f, cx + s * 0.095f, top + s * 0.26f),
+            "BICEPS" to Rect(cx - s * 0.18f, top + s * 0.255f, cx - s * 0.115f, top + s * 0.42f),
+            "BICEPS" to Rect(cx + s * 0.115f, top + s * 0.255f, cx + s * 0.18f, top + s * 0.42f),
+            "ABS" to Rect(cx - s * 0.08f, top + s * 0.275f, cx + s * 0.08f, top + s * 0.475f),
+            "QUADS" to Rect(cx - s * 0.095f, top + s * 0.495f, cx - s * 0.01f, top + s * 0.82f),
+            "QUADS" to Rect(cx + s * 0.01f, top + s * 0.495f, cx + s * 0.095f, top + s * 0.82f)
         )
     } else {
         listOf(
-            "TRAPS" to Rect(cx - h * 0.09f, h * 0.125f, cx + h * 0.09f, h * 0.19f),
-            "REAR_SHOULDERS" to Rect(cx - h * 0.175f, h * 0.14f, cx - h * 0.10f, h * 0.23f),
-            "REAR_SHOULDERS" to Rect(cx + h * 0.10f, h * 0.14f, cx + h * 0.175f, h * 0.23f),
-            "LATS" to Rect(cx - h * 0.095f, h * 0.20f, cx - h * 0.006f, h * 0.35f),
-            "LATS" to Rect(cx + h * 0.006f, h * 0.20f, cx + h * 0.095f, h * 0.35f),
-            "TRICEPS" to Rect(cx - h * 0.18f, h * 0.245f, cx - h * 0.115f, h * 0.41f),
-            "TRICEPS" to Rect(cx + h * 0.115f, h * 0.245f, cx + h * 0.18f, h * 0.41f),
-            "LOWER_BACK" to Rect(cx - h * 0.075f, h * 0.36f, cx + h * 0.075f, h * 0.44f),
-            "GLUTES" to Rect(cx - h * 0.09f, h * 0.45f, cx - h * 0.006f, h * 0.545f),
-            "GLUTES" to Rect(cx + h * 0.006f, h * 0.45f, cx + h * 0.09f, h * 0.545f),
-            "HAMSTRINGS" to Rect(cx - h * 0.09f, h * 0.555f, cx - h * 0.01f, h * 0.745f),
-            "HAMSTRINGS" to Rect(cx + h * 0.01f, h * 0.555f, cx + h * 0.09f, h * 0.745f),
-            "CALVES" to Rect(cx - h * 0.085f, h * 0.755f, cx - h * 0.015f, h * 0.93f),
-            "CALVES" to Rect(cx + h * 0.015f, h * 0.755f, cx + h * 0.085f, h * 0.93f)
+            "TRAPS" to Rect(cx - s * 0.09f, top + s * 0.125f, cx + s * 0.09f, top + s * 0.19f),
+            "REAR_SHOULDERS" to Rect(cx - s * 0.175f, top + s * 0.14f, cx - s * 0.10f, top + s * 0.23f),
+            "REAR_SHOULDERS" to Rect(cx + s * 0.10f, top + s * 0.14f, cx + s * 0.175f, top + s * 0.23f),
+            "LATS" to Rect(cx - s * 0.095f, top + s * 0.20f, cx - s * 0.006f, top + s * 0.35f),
+            "LATS" to Rect(cx + s * 0.006f, top + s * 0.20f, cx + s * 0.095f, top + s * 0.35f),
+            "TRICEPS" to Rect(cx - s * 0.18f, top + s * 0.245f, cx - s * 0.115f, top + s * 0.41f),
+            "TRICEPS" to Rect(cx + s * 0.115f, top + s * 0.245f, cx + s * 0.18f, top + s * 0.41f),
+            "LOWER_BACK" to Rect(cx - s * 0.075f, top + s * 0.36f, cx + s * 0.075f, top + s * 0.44f),
+            "GLUTES" to Rect(cx - s * 0.09f, top + s * 0.45f, cx - s * 0.006f, top + s * 0.545f),
+            "GLUTES" to Rect(cx + s * 0.006f, top + s * 0.45f, cx + s * 0.09f, top + s * 0.545f),
+            "HAMSTRINGS" to Rect(cx - s * 0.09f, top + s * 0.555f, cx - s * 0.01f, top + s * 0.745f),
+            "HAMSTRINGS" to Rect(cx + s * 0.01f, top + s * 0.555f, cx + s * 0.09f, top + s * 0.745f),
+            "CALVES" to Rect(cx - s * 0.085f, top + s * 0.755f, cx - s * 0.015f, top + s * 0.93f),
+            "CALVES" to Rect(cx + s * 0.015f, top + s * 0.755f, cx + s * 0.085f, top + s * 0.93f)
         )
     }
 }
@@ -1040,12 +1096,4 @@ private fun volumeIntensityColor(weeklySets: Int): Color = when {
     weeklySets >= 8 -> StatsVolt
     weeklySets >= 1 -> StatsMedVolt
     else -> StatsZeroMuscle
-}
-
-private fun formatStatNumber(value: Double): String {
-    return if (value % 1.0 == 0.0) {
-        value.toInt().toString()
-    } else {
-        "%.1f".format(Locale.US, value)
-    }
 }

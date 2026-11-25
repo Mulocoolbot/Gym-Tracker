@@ -90,7 +90,6 @@ class PreReleaseDatabaseAndFeatureAuditTest {
         assertEquals(AppStartDestination.SIGN_IN, authVm.uiState.value.destination)
 
         authVm.requestEmailOtp(
-            context = null,
             emailInput = "alex@mfit.app",
             currentMillis = 1_000_000L
         )
@@ -120,7 +119,6 @@ class PreReleaseDatabaseAndFeatureAuditTest {
         assertEquals(AuthEntryMode.LOG_IN, authVm.uiState.value.authEntryMode)
 
         authVm.requestEmailOtp(
-            context = null,
             emailInput = "unregistered@mfit.app",
             currentMillis = 2_000_000L
         )
@@ -130,7 +128,6 @@ class PreReleaseDatabaseAndFeatureAuditTest {
         )
 
         authVm.requestEmailOtp(
-            context = null,
             emailInput = "alex@mfit.app",
             currentMillis = 2_100_000L
         )

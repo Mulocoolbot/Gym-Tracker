@@ -1,5 +1,7 @@
 package com.mulocoolbot.gymtracker.timer
 
+import com.mulocoolbot.gymtracker.util.currentEpochMillis
+import com.mulocoolbot.gymtracker.util.formatTwoDigits
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,7 +14,7 @@ class RestTimerController {
     fun startTimer(
         durationMillis: Long,
         label: String = "Rest Timer",
-        currentMillis: Long = System.currentTimeMillis()
+        currentMillis: Long = currentEpochMillis()
     ) {
         val totalSeconds = (durationMillis / 1000L).toInt().coerceAtLeast(0)
         _state.value = RestTimerState(
@@ -27,7 +29,7 @@ class RestTimerController {
 
     fun adjustTimer(
         deltaSeconds: Int,
-        currentMillis: Long = System.currentTimeMillis()
+        currentMillis: Long = currentEpochMillis()
     ) {
         val current = _state.value
         if (!current.isRunning) return
@@ -56,7 +58,7 @@ class RestTimerController {
         }
     }
 
-    fun tick(currentMillis: Long = System.currentTimeMillis()) {
+    fun tick(currentMillis: Long = currentEpochMillis()) {
         val current = _state.value
         if (!current.isRunning) return
 
@@ -93,7 +95,7 @@ class RestTimerController {
 
         fun formatMMSS(seconds: Int): String {
             val safeSeconds = seconds.coerceAtLeast(0)
-            return "%02d:%02d".format(safeSeconds / 60, safeSeconds % 60)
+            return "${formatTwoDigits(safeSeconds / 60)}:${formatTwoDigits(safeSeconds % 60)}"
         }
     }
 }

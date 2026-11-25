@@ -9,16 +9,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -44,28 +48,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
+import com.mulocoolbot.gymtracker.platform.createAuthBridge
+import com.mulocoolbot.gymtracker.platform.rememberGoogleSignInAction
 import com.mulocoolbot.gymtracker.ui.components.ArrowRightIcon
+import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
 import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
+import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.epochMillisToIsoDateUtc
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import com.mulocoolbot.gymtracker.util.formatDecimal1
+import com.mulocoolbot.gymtracker.util.parseDecimalInput
+import com.mulocoolbot.gymtracker.util.parseIsoDateToEpochMillis
 import kotlin.math.round
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 
 private val AuthScreenBg = Color(0xFF0B0C0E)
 private val AuthCardBg = Color(0xFF14161B)
@@ -83,6 +98,7 @@ fun WelcomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AuthScreenBg)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
@@ -172,10 +188,17 @@ fun SignInScreen(
     authEntryMode: AuthEntryMode = AuthEntryMode.SIGN_IN,
     isLinkingFromSettings: Boolean = false,
     onSwitchAuthMode: (AuthEntryMode) -> Unit = {},
-    onBackToWelcome: () -> Unit = {}
+    onBackToWelcome: () -> Unit = {},
+    onAuthError: (String) -> Unit = {}
 ) {
-    val launchGoogleAuth = rememberGoogleAuthLauncher(
-        onSuccess = onGoogleAuthenticated
+    val authBridge = remember { createAuthBridge() }
+    val launchGoogleAuth = rememberGoogleSignInAction(
+        onSuccess = onGoogleAuthenticated,
+        onErrorOrCancel = {
+            if (!authBridge.isGoogleSignInSupported) {
+                onAuthError("Google Sign-In is unavailable without Google configuration. Use Email verification.")
+            }
+        }
     )
 
     when (authStep) {
@@ -218,12 +241,19 @@ private fun EmailInputStepContent(
 ) {
     var email by remember { mutableStateOf("") }
     val isSignInMode = authEntryMode == AuthEntryMode.SIGN_IN
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DismissKeyboardOnScroll(scrollState.isScrollInProgress)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AuthScreenBg)
-            .verticalScroll(rememberScrollState())
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .dismissKeyboardOnTap()
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Row(
@@ -235,7 +265,11 @@ private fun EmailInputStepContent(
                     .clip(RoundedCornerShape(50))
                     .background(AuthCardBg)
                     .border(1.dp, AuthBorder, RoundedCornerShape(50))
-                    .clickable(onClick = onBackToWelcome)
+                    .clickable {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        onBackToWelcome()
+                    }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -298,7 +332,11 @@ private fun EmailInputStepContent(
 
         GoogleSignInButton(
             label = if (isSignInMode) "Sign In with Google" else "Log In with Google",
-            onClick = onContinueWithGoogle
+            onClick = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                onContinueWithGoogle()
+            }
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -355,7 +393,19 @@ private fun EmailInputStepContent(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(text = "you@example.com", color = AuthMuted) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            if (email.isNotBlank()) {
+                                onSendCode(email.trim())
+                            }
+                        }
+                    ),
                     shape = RoundedCornerShape(16.dp),
                     colors = bentoTextFieldColors()
                 )
@@ -373,7 +423,11 @@ private fun EmailInputStepContent(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = { onSendCode(email.trim()) },
+                    onClick = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        onSendCode(email.trim())
+                    },
                     enabled = email.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -461,12 +515,19 @@ private fun OtpVerificationStepContent(
     onClearError: () -> Unit
 ) {
     var otpCode by remember { mutableStateOf("") }
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DismissKeyboardOnScroll(scrollState.isScrollInProgress)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AuthScreenBg)
-            .verticalScroll(rememberScrollState())
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .dismissKeyboardOnTap()
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Row(
@@ -478,7 +539,11 @@ private fun OtpVerificationStepContent(
                     .clip(RoundedCornerShape(50))
                     .background(AuthCardBg)
                     .border(1.dp, AuthBorder, RoundedCornerShape(50))
-                    .clickable(onClick = onBackToEmailInput)
+                    .clickable {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        onBackToEmailInput()
+                    }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -541,7 +606,11 @@ private fun OtpVerificationStepContent(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
-                    onClick = { onVerifyCode(otpCode) },
+                    onClick = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        onVerifyCode(otpCode)
+                    },
                     enabled = otpCode.length == 6,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -589,13 +658,25 @@ fun SixDigitOtpInputField(
     code: String,
     onCodeChange: (String) -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     BasicTextField(
         value = code,
         onValueChange = { raw ->
             val digitsOnly = raw.filter { it.isDigit() }.take(6)
             onCodeChange(digitsOnly)
         },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.NumberPassword,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+            }
+        ),
         cursorBrush = SolidColor(AuthVolt),
         decorationBox = {
             Row(
@@ -680,28 +761,40 @@ fun ProfileSetupScreen(
     var heightCm by remember { mutableStateOf("175") }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    val birthDateMillis = parseBirthDateMillis(birthDateText)
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DismissKeyboardOnScroll(scrollState.isScrollInProgress)
+
+    val birthDateMillis = parseIsoDateToEpochMillis(birthDateText)
     val calculatedAge = remember(birthDateMillis) {
         WorkoutCalculator.calculateAge(birthDateMillis)
     }
 
     fun adjustWeight(delta: Double) {
-        val current = weightKg.toDoubleOrNull() ?: 70.0
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        val current = parseDecimalInput(weightKg) ?: 70.0
         val next = (round((current + delta) * 10.0) / 10.0).coerceAtLeast(1.0)
-        weightKg = if (next % 1.0 == 0.0) "%.1f".format(Locale.US, next) else "%.1f".format(Locale.US, next)
+        weightKg = formatDecimal1(next)
     }
 
     fun adjustHeight(delta: Int) {
-        val current = heightCm.toDoubleOrNull() ?: 175.0
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        val current = parseDecimalInput(heightCm) ?: 175.0
         val next = (current + delta).coerceAtLeast(50.0)
-        heightCm = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(Locale.US, next)
+        heightCm = formatCompactNumber(next)
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AuthScreenBg)
-            .verticalScroll(rememberScrollState())
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .dismissKeyboardOnTap()
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center
     ) {
@@ -736,6 +829,13 @@ fun ProfileSetupScreen(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(text = "Name", color = AuthMuted) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
                     shape = RoundedCornerShape(16.dp),
                     colors = bentoTextFieldColors()
                 )
@@ -773,7 +873,13 @@ fun ProfileSetupScreen(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(text = "YYYY-MM-DD", color = AuthMuted) },
                     trailingIcon = {
-                        TextButton(onClick = { showDatePicker = true }) {
+                        TextButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                showDatePicker = true
+                            }
+                        ) {
                             Text(
                                 text = "Pick",
                                 color = AuthVolt,
@@ -782,6 +888,13 @@ fun ProfileSetupScreen(
                         }
                     },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
                     shape = RoundedCornerShape(16.dp),
                     colors = bentoTextFieldColors()
                 )
@@ -817,11 +930,13 @@ fun ProfileSetupScreen(
 
         val canSubmit = name.isNotBlank() &&
             birthDateMillis > 0L &&
-            (weightKg.toDoubleOrNull() ?: 0.0) > 0.0 &&
-            (heightCm.toDoubleOrNull() ?: 0.0) > 0.0
+            (parseDecimalInput(weightKg) ?: 0.0) > 0.0 &&
+            (parseDecimalInput(heightCm) ?: 0.0) > 0.0
 
         Button(
             onClick = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
                 onCompleteProfile(
                     name.trim(),
                     birthDateMillis,
@@ -850,9 +965,9 @@ fun ProfileSetupScreen(
     }
 
     if (showDatePicker) {
-        val initialMillis = parseBirthDateMillis(birthDateText)
+        val initialMillis = parseIsoDateToEpochMillis(birthDateText)
             .takeIf { it > 0L }
-            ?: LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            ?: LocalDate(2000, 1, 1).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
 
         DatePickerDialog(
@@ -861,10 +976,7 @@ fun ProfileSetupScreen(
                 TextButton(
                     onClick = {
                         pickerState.selectedDateMillis?.let { selectedMillis ->
-                            val date = Instant.ofEpochMilli(selectedMillis)
-                                .atZone(ZoneOffset.UTC)
-                                .toLocalDate()
-                            birthDateText = date.toString()
+                            birthDateText = epochMillisToIsoDateUtc(selectedMillis)
                         }
                         showDatePicker = false
                     }
@@ -892,8 +1004,30 @@ private fun MetricStepperColumn(
     onIncrement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Column(modifier = modifier) {
-        FieldLabel(text = label)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FieldLabel(text = label)
+            if (isFocused) {
+                Text(
+                    text = "Done",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthVolt,
+                    modifier = Modifier.clickable {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Row(
             modifier = Modifier
@@ -926,7 +1060,16 @@ private fun MetricStepperColumn(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                ),
                 cursorBrush = SolidColor(AuthVolt),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
@@ -935,7 +1078,9 @@ private fun MetricStepperColumn(
                     color = AuthWhite,
                     textAlign = TextAlign.Center
                 ),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { isFocused = it.isFocused }
             )
 
             Box(
@@ -977,12 +1122,3 @@ private fun bentoTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = AuthBorder,
     cursorColor = AuthVolt
 )
-
-private fun parseBirthDateMillis(input: String): Long {
-    return runCatching {
-        LocalDate.parse(input.trim())
-            .atStartOfDay(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-    }.getOrDefault(0L)
-}

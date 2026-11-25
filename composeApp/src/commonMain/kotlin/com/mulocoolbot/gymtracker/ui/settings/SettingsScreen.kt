@@ -1,7 +1,5 @@
 package com.mulocoolbot.gymtracker.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -15,12 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -52,11 +53,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,22 +68,23 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.auth.EmailOtpManager
-import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
 import com.mulocoolbot.gymtracker.data.auth.OtpRequestResult
 import com.mulocoolbot.gymtracker.data.auth.OtpVerifyResult
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
+import com.mulocoolbot.gymtracker.platform.createAuthBridge
+import com.mulocoolbot.gymtracker.platform.rememberGoogleSignInAction
+import com.mulocoolbot.gymtracker.platform.rememberJsonBackupController
 import com.mulocoolbot.gymtracker.ui.auth.SixDigitOtpInputField
-import com.mulocoolbot.gymtracker.ui.auth.rememberGoogleAuthLauncher
+import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
+import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
-import com.mulocoolbot.gymtracker.ui.theme.DangerRed
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import com.mulocoolbot.gymtracker.util.parseDecimalInput
 import kotlin.math.round
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private val SettingsCardBg = Color(0xFF14161B)
 private val SettingsInnerBg = Color(0xFF1A1D24)
@@ -100,44 +104,16 @@ fun SettingsScreen(
     onExportBackup: suspend () -> String = { "" },
     onImportBackup: suspend (String) -> Boolean = { false }
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val json = onExportBackup()
-                if (json.isNotEmpty()) {
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            context.contentResolver.openOutputStream(uri)?.use { stream ->
-                                stream.write(json.toByteArray(Charsets.UTF_8))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    DismissKeyboardOnScroll(scrollState.isScrollInProgress)
 
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val jsonContent = withContext(Dispatchers.IO) {
-                    runCatching {
-                        context.contentResolver.openInputStream(uri)
-                            ?.bufferedReader(Charsets.UTF_8)
-                            ?.use { it.readText() }
-                    }.getOrNull()
-                }
-                if (!jsonContent.isNullOrBlank()) {
-                    onImportBackup(jsonContent)
-                }
-            }
+    val backupController = rememberJsonBackupController { jsonContent ->
+        coroutineScope.launch {
+            onImportBackup(jsonContent)
         }
     }
 
@@ -145,7 +121,9 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground)
-            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .dismissKeyboardOnTap()
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Text(
@@ -174,8 +152,21 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         DataBackupBentoCard(
-            onExportClick = { exportLauncher.launch("mfit_backup.json") },
-            onImportClick = { importLauncher.launch(arrayOf("application/json")) }
+            onExportClick = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                coroutineScope.launch {
+                    val json = onExportBackup()
+                    if (json.isNotEmpty()) {
+                        backupController.exportJson("mfit_backup.json", json)
+                    }
+                }
+            },
+            onImportClick = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                backupController.launchImport()
+            }
         )
     }
 }
@@ -187,15 +178,17 @@ private fun AboutMeBentoCard(
     onUpdateProfile: (name: String, weightKg: Double, heightCm: Double) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     var nameInput by remember(userProfile?.name) {
         mutableStateOf(userProfile?.name.orEmpty())
     }
     var weightInput by remember(userProfile?.weightKg) {
-        mutableStateOf(userProfile?.weightKg?.let { formatMetricNumber(it) } ?: "70.0")
+        mutableStateOf(userProfile?.weightKg?.let { formatCompactNumber(it) } ?: "70.0")
     }
     var heightInput by remember(userProfile?.heightCm) {
-        mutableStateOf(userProfile?.heightCm?.let { formatMetricNumber(it) } ?: "175")
+        mutableStateOf(userProfile?.heightCm?.let { formatCompactNumber(it) } ?: "175")
     }
 
     val ageValue = remember(userProfile?.birthDateMillis) {
@@ -204,25 +197,29 @@ private fun AboutMeBentoCard(
 
     fun commitIfValid(newName: String, newWeight: String, newHeight: String) {
         val cleanName = newName.trim().ifEmpty { userProfile?.name?.trim().orEmpty() }
-        val parsedWeight = newWeight.trim().toDoubleOrNull() ?: return
-        val parsedHeight = newHeight.trim().toDoubleOrNull() ?: return
+        val parsedWeight = parseDecimalInput(newWeight) ?: return
+        val parsedHeight = parseDecimalInput(newHeight) ?: return
         if (cleanName.isNotEmpty() && parsedWeight > 0.0 && parsedHeight > 0.0) {
             onUpdateProfile(cleanName, parsedWeight, parsedHeight)
         }
     }
 
     fun stepWeight(delta: Double) {
-        val current = weightInput.toDoubleOrNull() ?: userProfile?.weightKg ?: 70.0
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        val current = parseDecimalInput(weightInput) ?: userProfile?.weightKg ?: 70.0
         val updated = (round((current + delta) * 10.0) / 10.0).coerceAtLeast(1.0)
-        val formatted = formatMetricNumber(updated)
+        val formatted = formatCompactNumber(updated)
         weightInput = formatted
         commitIfValid(nameInput, formatted, heightInput)
     }
 
     fun stepHeight(delta: Int) {
-        val current = heightInput.toDoubleOrNull() ?: userProfile?.heightCm ?: 175.0
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        val current = parseDecimalInput(heightInput) ?: userProfile?.heightCm ?: 175.0
         val updated = (current + delta).coerceAtLeast(50.0)
-        val formatted = formatMetricNumber(updated)
+        val formatted = formatCompactNumber(updated)
         heightInput = formatted
         commitIfValid(nameInput, weightInput, formatted)
     }
@@ -303,7 +300,16 @@ private fun AboutMeBentoCard(
                             commitIfValid(updated, weightInput, heightInput)
                         },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                            }
+                        ),
                         cursorBrush = SolidColor(SettingsVolt),
                         textStyle = TextStyle(
                             fontWeight = FontWeight.Bold,
@@ -384,6 +390,10 @@ private fun SettingsMetricStepperBox(
     onIncrement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -391,13 +401,31 @@ private fun SettingsMetricStepperBox(
             .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
             .padding(12.dp)
     ) {
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.6.sp,
-            color = SettingsMuted
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp,
+                color = SettingsMuted
+            )
+            if (isFocused) {
+                Text(
+                    text = "Done",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsVolt,
+                    modifier = Modifier.clickable {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -427,7 +455,16 @@ private fun SettingsMetricStepperBox(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                ),
                 cursorBrush = SolidColor(SettingsVolt),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
@@ -436,7 +473,9 @@ private fun SettingsMetricStepperBox(
                     color = SettingsWhite,
                     textAlign = TextAlign.Center
                 ),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { isFocused = it.isFocused }
             )
 
             Box(
@@ -467,7 +506,7 @@ private fun AccountInfoBentoCard(
 ) {
     var showEmailOtpLinkDialog by remember { mutableStateOf(false) }
 
-    val launchGoogleLink = rememberGoogleAuthLauncher(
+    val launchGoogleLink = rememberGoogleSignInAction(
         onSuccess = { selectedEmail, _ ->
             onToggleGoogleLink(selectedEmail)
         }
@@ -678,9 +717,11 @@ private fun LinkEmailOtpDialog(
     onDismiss: () -> Unit,
     onVerifiedEmail: (String) -> Unit
 ) {
-    val context = LocalContext.current
+    val authBridge = remember { createAuthBridge() }
     val scope = rememberCoroutineScope()
     val otpManager = remember { EmailOtpManager() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     var emailInput by remember { mutableStateOf("") }
     var otpCodeInput by remember { mutableStateOf("") }
@@ -689,7 +730,9 @@ private fun LinkEmailOtpDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .dismissKeyboardOnTap(),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
             border = BorderStroke(1.dp, SettingsBorder)
@@ -714,7 +757,16 @@ private fun LinkEmailOtpDialog(
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text(text = "Email address", color = SettingsMuted) },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                            }
+                        ),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = SettingsWhite,
@@ -763,13 +815,15 @@ private fun LinkEmailOtpDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
                             if (!isOtpStep) {
                                 val (result, code) = otpManager.generateOtp(emailInput.trim())
                                 if (result == OtpRequestResult.SENT && code != null) {
                                     isOtpStep = true
                                     errorMessage = null
                                     scope.launch {
-                                        EmailOtpSender.sendOtpEmail(context, emailInput.trim(), code)
+                                        authBridge.deliverOtp(emailInput.trim(), code)
                                     }
                                 } else {
                                     errorMessage = "Invalid email address"
@@ -870,13 +924,5 @@ private fun DataBackupBentoCard(
                 }
             }
         }
-    }
-}
-
-private fun formatMetricNumber(value: Double): String {
-    return if (value % 1.0 == 0.0) {
-        value.toInt().toString()
-    } else {
-        "%.1f".format(Locale.US, value)
     }
 }

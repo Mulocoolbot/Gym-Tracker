@@ -1,10 +1,5 @@
 package com.mulocoolbot.gymtracker.ui.navigation
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -17,11 +12,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,12 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -47,15 +46,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
+import com.mulocoolbot.gymtracker.platform.PlatformPermissionsRequester
+import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
+import com.mulocoolbot.gymtracker.platform.rememberNotificationPermissionRequester
 import com.mulocoolbot.gymtracker.timer.RestTimerController
-import com.mulocoolbot.gymtracker.timer.RestTimerService
 import com.mulocoolbot.gymtracker.ui.auth.AppStartDestination
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingUiState
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingViewModel
 import com.mulocoolbot.gymtracker.ui.auth.ProfileSetupScreen
 import com.mulocoolbot.gymtracker.ui.auth.SignInScreen
 import com.mulocoolbot.gymtracker.ui.auth.WelcomeScreen
-import com.mulocoolbot.gymtracker.ui.components.SystemPermissionsRequester
 import com.mulocoolbot.gymtracker.ui.home.HomeScreen
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
 import com.mulocoolbot.gymtracker.ui.intro.MFitOpeningIntro
@@ -78,7 +78,6 @@ fun MainScaffold(
     repository: GymRepository,
     timerController: RestTimerController = RestTimerController.instance
 ) {
-    val context = LocalContext.current
     val authViewModel: AuthOnboardingViewModel = viewModel(
         factory = AuthOnboardingViewModel.factory(repository)
     )
@@ -100,7 +99,7 @@ fun MainScaffold(
         return
     }
 
-    SystemPermissionsRequester()
+    PlatformPermissionsRequester()
 
     Crossfade(
         targetState = authUiState.destination,
@@ -122,14 +121,13 @@ fun MainScaffold(
                     resendCountdownSeconds = authUiState.resendCountdownSeconds,
                     onGoogleAuthenticated = authViewModel::onGoogleAuthenticated,
                     onSendEmailOtp = { email ->
-                        authViewModel.requestEmailOtp(context = context, emailInput = email)
+                        authViewModel.requestEmailOtp(emailInput = email)
                     },
                     onVerifyEmailOtp = { otpCode ->
                         authViewModel.verifyEmailOtp(otpInput = otpCode)
                     },
                     onResendEmailOtp = {
                         authViewModel.requestEmailOtp(
-                            context = context,
                             emailInput = authUiState.pendingEmail,
                             isResend = true
                         )
@@ -138,7 +136,8 @@ fun MainScaffold(
                     onClearError = authViewModel::clearAuthError,
                     authEntryMode = authUiState.authEntryMode,
                     onSwitchAuthMode = authViewModel::setAuthEntryMode,
-                    onBackToWelcome = authViewModel::onBackToWelcome
+                    onBackToWelcome = authViewModel::onBackToWelcome,
+                    onAuthError = authViewModel::setAuthErrorMessage
                 )
             }
 
@@ -173,24 +172,8 @@ private fun AuthenticatedMainContent(
     authUiState: AuthOnboardingUiState,
     authViewModel: AuthOnboardingViewModel
 ) {
-    val context = LocalContext.current
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { }
-
-    val ensureNotificationPermission = {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val status = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            )
-            if (status != PackageManager.PERMISSION_GRANTED) {
-                runCatching {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        }
-    }
+    val ensureNotificationPermission = rememberNotificationPermissionRequester()
+    val timerBridge = remember { createPlatformRestTimerBridge() }
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -215,9 +198,9 @@ private fun AuthenticatedMainContent(
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
-            .systemBarsPadding(),
+            .background(AppBackground),
         containerColor = AppBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             GymBottomBar(
                 currentRoute = currentRoute,
@@ -230,11 +213,17 @@ private fun AuthenticatedMainContent(
                 .fillMaxSize()
                 .background(AppBackground)
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    )
+                )
         ) {
             if (timerState.alarmRinging) {
                 AlarmFinishedBanner(
                     onDismiss = {
-                        runCatching { RestTimerService.stopRestTimer(context) }
+                        timerBridge.stopBackgroundTimer()
                         timerController.dismissOrSkip()
                     }
                 )
@@ -298,7 +287,7 @@ private fun AuthenticatedMainContent(
                         onStartWorkout = workoutViewModel::startWorkout,
                         onStopWorkout = {
                             workoutViewModel.stopWorkout(planName = activePlanName) {
-                                runCatching { RestTimerService.stopRestTimer(context) }
+                                timerBridge.stopBackgroundTimer()
                             }
                         },
                         onExerciseNameChange = workoutViewModel::onExerciseNameChanged,
@@ -307,16 +296,12 @@ private fun AuthenticatedMainContent(
                         onSelectSetType = workoutViewModel::selectSetType,
                         onAddSet = {
                             workoutViewModel.addSet { durationMillis, label ->
-                                runCatching {
-                                    RestTimerService.startRestTimer(context, durationMillis, label)
-                                }
+                                timerBridge.startBackgroundTimer(durationMillis, label)
                             }
                         },
                         onSkipOrDismissRest = {
                             workoutViewModel.skipOrDismissRestTimer {
-                                runCatching {
-                                    RestTimerService.stopRestTimer(context)
-                                }
+                                timerBridge.stopBackgroundTimer()
                             }
                         },
                         onSelectExerciseSuggestion = workoutViewModel::selectExerciseSuggestion,
@@ -326,16 +311,14 @@ private fun AuthenticatedMainContent(
                         onDeleteSessionSet = workoutViewModel::deleteSessionSet,
                         onAdjustRestTimer = { deltaSeconds ->
                             workoutViewModel.adjustRestTimer(deltaSeconds) { delta ->
-                                runCatching {
-                                    RestTimerService.adjustRestTimer(context, delta)
-                                }
+                                timerBridge.adjustBackgroundTimer(delta)
                             }
                         },
                         onRequestFinishWorkout = workoutViewModel::requestFinishWorkout,
                         onDismissFinishDialog = workoutViewModel::dismissFinishDialog,
                         onConfirmFinishWorkout = {
                             workoutViewModel.stopWorkout(planName = activePlanName) {
-                                runCatching { RestTimerService.stopRestTimer(context) }
+                                timerBridge.stopBackgroundTimer()
                             }
                         }
                     )

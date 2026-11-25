@@ -3,6 +3,8 @@ package com.mulocoolbot.gymtracker.ui.workout
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mulocoolbot.gymtracker.data.local.ExerciseHistoryEntity
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
@@ -11,8 +13,12 @@ import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerState
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
-import java.time.LocalDate
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.currentEpochMillis
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import com.mulocoolbot.gymtracker.util.formatTwoDigits
+import com.mulocoolbot.gymtracker.util.parseDecimalInput
+import com.mulocoolbot.gymtracker.util.todayLocalDate
+import kotlin.jvm.JvmName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,6 +33,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.isoDayNumber
 
 data class DraftWorkoutSet(
     val id: Long = 0L,
@@ -73,7 +81,7 @@ data class WorkoutUiState(
 }
 
 val WorkoutSetEntity.setLabel: String
-    get() = when (setType.uppercase(Locale.US)) {
+    get() = when (setType.uppercase()) {
         WorkoutUiState.SET_TYPE_WARMUP -> "Warmup"
         WorkoutUiState.SET_TYPE_FINAL -> "Final Set"
         else -> "Set $setOrder"
@@ -103,7 +111,7 @@ private data class RepositoryWorkoutContext(
 class WorkoutViewModel(
     private val repository: GymRepository,
     private val timerController: RestTimerController = RestTimerController.instance,
-    private val todayEpochDay: Long = LocalDate.now().toEpochDay()
+    private val todayEpochDay: Long = todayLocalDate().toEpochDays().toLong()
 ) : ViewModel() {
 
     private val sessionDraft = MutableStateFlow(ActiveSessionDraftState())
@@ -132,7 +140,7 @@ class WorkoutViewModel(
         repositoryContext,
         timerController.state
     ) { draft, repoContext, timerState ->
-        val dayOfWeek = LocalDate.ofEpochDay(todayEpochDay).dayOfWeek.value % 7
+        val dayOfWeek = LocalDate.fromEpochDays(todayEpochDay.toInt()).dayOfWeek.isoDayNumber % 7
         val scheduledPlan = repoContext.weeklyPlan.firstOrNull { it.dayOfWeek == dayOfWeek }
         val resolvedPlanName = if (scheduledPlan != null && !scheduledPlan.isRestDay && scheduledPlan.planName.isNotBlank()) {
             scheduledPlan.planName
@@ -169,7 +177,7 @@ class WorkoutViewModel(
         initialValue = WorkoutUiState()
     )
 
-    fun startWorkout(currentMillis: Long = System.currentTimeMillis()) {
+    fun startWorkout(currentMillis: Long = currentEpochMillis()) {
         elapsedTickerJob?.cancel()
         sessionDraft.update { current ->
             current.copy(
@@ -186,7 +194,7 @@ class WorkoutViewModel(
                 delay(1_000L)
                 val startMillis = sessionDraft.value.sessionStartMillis
                 if (startMillis > 0L) {
-                    val nowMillis = System.currentTimeMillis()
+                    val nowMillis = currentEpochMillis()
                     val elapsed = ((nowMillis - startMillis) / 1_000L).coerceAtLeast(0L)
                     val calories = WorkoutCalculator.calculateCalories(
                         weightKg = currentUserWeightKg(),
@@ -251,9 +259,9 @@ class WorkoutViewModel(
 
     fun stepWeight(deltaKg: Double) {
         sessionDraft.update { current ->
-            val currentVal = current.weightInput.trim().toDoubleOrNull() ?: 0.0
+            val currentVal = parseDecimalInput(current.weightInput) ?: 0.0
             val nextVal = (currentVal + deltaKg).coerceAtLeast(0.0)
-            current.copy(weightInput = formatWeightNumber(nextVal))
+            current.copy(weightInput = formatCompactNumber(nextVal))
         }
     }
 
@@ -274,7 +282,7 @@ class WorkoutViewModel(
     }
 
     fun selectSetType(setType: String) {
-        val normalizedType = setType.uppercase(Locale.US)
+        val normalizedType = setType.uppercase()
         if (normalizedType in VALID_SET_TYPES) {
             sessionDraft.update { it.copy(selectedSetType = normalizedType) }
         }
@@ -289,7 +297,7 @@ class WorkoutViewModel(
     ) {
         val current = sessionDraft.value
         val normalizedExercise = WorkoutCalculator.normalizeExerciseName(current.exerciseInput)
-        val weightKg = current.weightInput.trim().toDoubleOrNull() ?: return
+        val weightKg = parseDecimalInput(current.weightInput) ?: return
         val reps = current.repsInput.trim().toIntOrNull() ?: return
         if (normalizedExercise.isEmpty() || weightKg <= 0.0 || reps <= 0) return
 
@@ -302,7 +310,7 @@ class WorkoutViewModel(
             normalSetNumber = nextNormalNumber
         )
         val e1rm = WorkoutCalculator.calculateE1RM(weightKg = weightKg, reps = reps)
-        val nowMillis = System.currentTimeMillis()
+        val nowMillis = currentEpochMillis()
         val setId = nextDraftSetId++
 
         val newSet = DraftWorkoutSet(
@@ -406,8 +414,8 @@ class WorkoutViewModel(
         elapsedTickerJob?.cancel()
         val completedDraft = sessionDraft.value
         val startMillis = completedDraft.sessionStartMillis.takeIf { it > 0L }
-            ?: System.currentTimeMillis()
-        val endMillis = System.currentTimeMillis().coerceAtLeast(startMillis + 60_000L)
+            ?: currentEpochMillis()
+        val endMillis = currentEpochMillis().coerceAtLeast(startMillis + 60_000L)
         val loggedSets = completedDraft.activeSessionSets
 
         timerController.dismissOrSkip()
@@ -470,14 +478,6 @@ class WorkoutViewModel(
         else -> "Set $normalSetNumber"
     }
 
-    private fun formatWeightNumber(value: Double): String {
-        return if (value % 1.0 == 0.0) {
-            value.toInt().toString()
-        } else {
-            "%.1f".format(Locale.US, value)
-        }
-    }
-
     companion object {
         private val VALID_SET_TYPES = setOf(
             WorkoutUiState.SET_TYPE_WARMUP,
@@ -487,24 +487,21 @@ class WorkoutViewModel(
 
         fun formatElapsedHHMMSS(elapsedSeconds: Long): String {
             val safeSeconds = elapsedSeconds.coerceAtLeast(0L)
-            val hours = safeSeconds / 3600L
-            val minutes = (safeSeconds % 3600L) / 60L
-            val seconds = safeSeconds % 60L
-            return "%02d:%02d:%02d".format(Locale.US, hours, minutes, seconds)
+            val hours = (safeSeconds / 3600L).toInt()
+            val minutes = ((safeSeconds % 3600L) / 60L).toInt()
+            val seconds = (safeSeconds % 60L).toInt()
+            return "${formatTwoDigits(hours)}:${formatTwoDigits(minutes)}:${formatTwoDigits(seconds)}"
         }
 
         fun factory(
             repository: GymRepository,
             timerController: RestTimerController = RestTimerController.instance
-        ): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return WorkoutViewModel(
-                        repository = repository,
-                        timerController = timerController
-                    ) as T
-                }
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                WorkoutViewModel(
+                    repository = repository,
+                    timerController = timerController
+                )
             }
         }
     }

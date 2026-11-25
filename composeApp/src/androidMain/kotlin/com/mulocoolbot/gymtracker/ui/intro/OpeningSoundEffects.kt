@@ -181,4 +181,3 @@ object OpeningSoundEffects {
         }
     }
 }
-

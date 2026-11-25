@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -31,11 +32,11 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -154,7 +155,7 @@ object MFitOpeningIntroTimeline {
         val anglesDeg = listOf(-168f, -142f, -112f, -68f, -36f, -12f, 14f, 38f, 72f, 118f, 148f, 172f)
         return anglesDeg.mapIndexed { idx, baseAngleDeg ->
             val segments = if (idx % 2 == 0) 5 else 4
-            val baseRad = Math.toRadians(baseAngleDeg.toDouble())
+            val baseRad = baseAngleDeg.toDouble() * PI / 180.0
             val points = mutableListOf(Offset.Zero)
             var currentX = 0f
             var currentY = 0f
@@ -202,7 +203,8 @@ object MFitOpeningIntroTimeline {
 fun MFitOpeningIntro(
     onOpeningFinished: () -> Unit
 ) {
-    val context = LocalContext.current
+    val timerBridge = remember { createPlatformRestTimerBridge() }
+    val latestOnOpeningFinished by rememberUpdatedState(onOpeningFinished)
     var elapsedMs by remember { mutableLongStateOf(0L) }
     var triggeredInnerBoom by remember { mutableStateOf(false) }
     var triggeredOuterBoom by remember { mutableStateOf(false) }
@@ -219,18 +221,18 @@ fun MFitOpeningIntro(
 
             if (!triggeredInnerBoom && elapsedMs >= MFitOpeningIntroTimeline.INNER_IMPACT_MS) {
                 triggeredInnerBoom = true
-                OpeningSoundEffects.playHeavyBoom(context, 0.95f)
+                timerBridge.playIntroImpact(isMetallicLock = false, intensity = 0.95f)
             }
             if (!triggeredOuterBoom && elapsedMs >= MFitOpeningIntroTimeline.OUTER_IMPACT_MS) {
                 triggeredOuterBoom = true
-                OpeningSoundEffects.playHeavyBoom(context, 1.15f)
+                timerBridge.playIntroImpact(isMetallicLock = false, intensity = 1.15f)
             }
             if (!triggeredMetallicLock && elapsedMs >= MFitOpeningIntroTimeline.METALLIC_LOCK_MS) {
                 triggeredMetallicLock = true
-                OpeningSoundEffects.playMetallicLock(context)
+                timerBridge.playIntroImpact(isMetallicLock = true)
             }
         }
-        onOpeningFinished()
+        latestOnOpeningFinished()
     }
 
     val textReveal = MFitOpeningIntroTimeline.computeTextRevealProgress(elapsedMs)
@@ -535,4 +537,3 @@ private fun DrawScope.drawPlateSymmetricPair(
         cornerRadius = CornerRadius(cornerRadius, cornerRadius)
     )
 }
-

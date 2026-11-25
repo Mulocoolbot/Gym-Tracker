@@ -173,4 +173,3 @@ private fun needsExactAlarmPermission(context: Context): Boolean {
         false
     }
 }
-

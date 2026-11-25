@@ -1,18 +1,22 @@
 package com.mulocoolbot.gymtracker.ui.auth
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
 import com.mulocoolbot.gymtracker.data.auth.AuthSession
 import com.mulocoolbot.gymtracker.data.auth.EmailOtpManager
-import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
 import com.mulocoolbot.gymtracker.data.auth.OtpRequestResult
 import com.mulocoolbot.gymtracker.data.auth.OtpVerifyResult
 import com.mulocoolbot.gymtracker.data.local.UserProfileEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
-import java.time.LocalDate
+import com.mulocoolbot.gymtracker.platform.AuthBridge
+import com.mulocoolbot.gymtracker.platform.createAuthBridge
+import com.mulocoolbot.gymtracker.util.currentEpochMillis
+import com.mulocoolbot.gymtracker.util.parseDecimalInput
+import com.mulocoolbot.gymtracker.util.todayLocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -70,7 +74,8 @@ private data class OtpFlowInternalState(
 
 class AuthOnboardingViewModel(
     private val repository: GymRepository,
-    val otpManager: EmailOtpManager = EmailOtpManager()
+    val otpManager: EmailOtpManager = EmailOtpManager(),
+    private val authBridge: AuthBridge = createAuthBridge()
 ) : ViewModel() {
 
     private val otpFlowState = MutableStateFlow(OtpFlowInternalState())
@@ -114,7 +119,7 @@ class AuthOnboardingViewModel(
         viewModelScope.launch {
             val initialSession = repository.authSession.first()
             if (initialSession.isAuthenticated && initialSession.isProfileCompleted) {
-                repository.evaluateStreakOnLaunch(LocalDate.now().toEpochDay())
+                repository.evaluateStreakOnLaunch(todayLocalDate().toEpochDays().toLong())
             }
         }
     }
@@ -156,11 +161,14 @@ class AuthOnboardingViewModel(
         }
     }
 
+    fun setAuthErrorMessage(message: String) {
+        otpFlowState.update { it.copy(otpErrorMessage = message) }
+    }
+
     fun requestEmailOtp(
-        context: Context? = null,
         emailInput: String,
         isResend: Boolean = false,
-        currentMillis: Long = System.currentTimeMillis()
+        currentMillis: Long = currentEpochMillis()
     ) {
         val cleanEmail = emailInput.trim()
         otpFlowState.update { it.copy(hasPassedWelcome = true) }
@@ -184,7 +192,6 @@ class AuthOnboardingViewModel(
                     return@launch
                 }
                 dispatchEmailOtpGeneration(
-                    context = context,
                     cleanEmail = cleanEmail,
                     isResend = isResend,
                     currentMillis = currentMillis
@@ -192,7 +199,6 @@ class AuthOnboardingViewModel(
             }
         } else {
             dispatchEmailOtpGeneration(
-                context = context,
                 cleanEmail = cleanEmail,
                 isResend = isResend,
                 currentMillis = currentMillis
@@ -201,7 +207,6 @@ class AuthOnboardingViewModel(
     }
 
     private fun dispatchEmailOtpGeneration(
-        context: Context?,
         cleanEmail: String,
         isResend: Boolean,
         currentMillis: Long
@@ -236,9 +241,9 @@ class AuthOnboardingViewModel(
                     )
                 }
                 startResendCountdown()
-                if (context != null && code != null) {
+                if (code != null) {
                     viewModelScope.launch {
-                        EmailOtpSender.sendOtpEmail(context, cleanEmail, code)
+                        authBridge.deliverOtp(cleanEmail, code)
                     }
                 }
             }
@@ -247,7 +252,7 @@ class AuthOnboardingViewModel(
 
     fun verifyEmailOtp(
         otpInput: String,
-        currentMillis: Long = System.currentTimeMillis()
+        currentMillis: Long = currentEpochMillis()
     ) {
         val targetEmail = otpFlowState.value.pendingEmail
         val entryMode = otpFlowState.value.authEntryMode
@@ -373,8 +378,8 @@ class AuthOnboardingViewModel(
         heightCmInput: String
     ) {
         val cleanName = name.trim()
-        val weightKg = weightKgInput.trim().toDoubleOrNull() ?: return
-        val heightCm = heightCmInput.trim().toDoubleOrNull() ?: return
+        val weightKg = parseDecimalInput(weightKgInput) ?: return
+        val heightCm = parseDecimalInput(heightCmInput) ?: return
         if (cleanName.isEmpty() || birthDateMillis <= 0L || weightKg <= 0.0 || heightCm <= 0.0) return
 
         viewModelScope.launch {
@@ -473,13 +478,8 @@ class AuthOnboardingViewModel(
             }
         }
 
-        fun factory(repository: GymRepository): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return AuthOnboardingViewModel(repository) as T
-                }
-            }
+        fun factory(repository: GymRepository): ViewModelProvider.Factory = viewModelFactory {
+            initializer { AuthOnboardingViewModel(repository) }
         }
     }
 }

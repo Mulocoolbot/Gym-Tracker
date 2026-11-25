@@ -14,14 +14,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,14 +44,19 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
 import com.mulocoolbot.gymtracker.ui.components.CalendarPlanIcon
+import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.SdCardSaveIcon
+import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.CardBorder
 import com.mulocoolbot.gymtracker.ui.theme.CardSurface
@@ -622,9 +631,23 @@ private fun InputPlanSubPageContent(
     onRequestCancel: () -> Unit,
     onSaveWorkoutPlan: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DismissKeyboardOnScroll(listState.isScrollInProgress)
+
+    fun dismissAndRun(action: () -> Unit) {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        action()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
+            .dismissKeyboardOnTap()
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Row(
@@ -658,7 +681,7 @@ private fun InputPlanSubPageContent(
                         .clip(RoundedCornerShape(50))
                         .background(CardSurface)
                         .border(1.dp, CardBorder, RoundedCornerShape(50))
-                        .clickable(onClick = onRequestCancel)
+                        .clickable { dismissAndRun(onRequestCancel) }
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
@@ -673,7 +696,7 @@ private fun InputPlanSubPageContent(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(VoltAccent)
-                        .clickable(onClick = onSaveWorkoutPlan)
+                        .clickable { dismissAndRun(onSaveWorkoutPlan) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -712,7 +735,7 @@ private fun InputPlanSubPageContent(
                     .clip(RoundedCornerShape(50))
                     .background(InputSurface)
                     .border(1.dp, CardBorder, RoundedCornerShape(50))
-                    .clickable(onClick = onGoToEditDaysPage)
+                    .clickable { dismissAndRun(onGoToEditDaysPage) }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -727,6 +750,7 @@ private fun InputPlanSubPageContent(
         Spacer(modifier = Modifier.height(14.dp))
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -752,7 +776,7 @@ private fun InputPlanSubPageContent(
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardSurface)
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .clickable(onClick = onGoToEditDaysPage),
+                    .clickable { dismissAndRun(onGoToEditDaysPage) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -770,7 +794,7 @@ private fun InputPlanSubPageContent(
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardSurface)
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .clickable(onClick = onRequestCancel),
+                    .clickable { dismissAndRun(onRequestCancel) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -785,7 +809,7 @@ private fun InputPlanSubPageContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         Button(
-            onClick = onSaveWorkoutPlan,
+            onClick = { dismissAndRun(onSaveWorkoutPlan) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
@@ -818,6 +842,9 @@ private fun DayPlanInputCard(
     currentValue: String,
     onValueChange: (String) -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -870,6 +897,13 @@ private fun DayPlanInputCard(
                     )
                 },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                ),
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary,
@@ -901,7 +935,11 @@ private fun DayPlanInputCard(
                                 color = if (isSelectedPreset) VoltAccent else CardBorder,
                                 shape = RoundedCornerShape(50)
                             )
-                            .clickable { onValueChange(preset) }
+                            .clickable {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                onValueChange(preset)
+                            }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(

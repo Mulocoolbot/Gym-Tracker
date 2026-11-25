@@ -183,7 +183,6 @@ class EmailOtpAndGoogleAuthBlackBoxTest {
         val viewModel = AuthOnboardingViewModel(repository)
 
         viewModel.requestEmailOtp(
-            context = null,
             emailInput = "alex@gmail.com",
             currentMillis = 1_000_000L
         )

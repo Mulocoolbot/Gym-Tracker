@@ -3,6 +3,8 @@ package com.mulocoolbot.gymtracker.ui.plan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -194,13 +196,8 @@ class WorkoutPlanViewModel(
     }
 
     companion object {
-        fun factory(repository: GymRepository): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return WorkoutPlanViewModel(repository) as T
-                }
-            }
+        fun factory(repository: GymRepository): ViewModelProvider.Factory = viewModelFactory {
+            initializer { WorkoutPlanViewModel(repository) }
         }
     }
 }

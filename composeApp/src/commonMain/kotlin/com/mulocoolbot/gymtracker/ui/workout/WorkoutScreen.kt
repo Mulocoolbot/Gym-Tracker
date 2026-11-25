@@ -1,10 +1,5 @@
 package com.mulocoolbot.gymtracker.ui.workout
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,15 +16,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,30 +39,39 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.core.content.ContextCompat
 import com.mulocoolbot.gymtracker.data.local.ExerciseHistoryEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
+import com.mulocoolbot.gymtracker.platform.rememberNotificationPermissionRequester
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerState
 import com.mulocoolbot.gymtracker.ui.components.ArrowRightIcon
+import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
+import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.CardBorder
 import com.mulocoolbot.gymtracker.ui.theme.CardSurface
@@ -73,7 +80,8 @@ import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import com.mulocoolbot.gymtracker.util.parseDecimalInput
 
 private val WorkoutVolt = Color(0xFFCCFF00)
 private val PillBadgeDark = Color(0xFF232733)
@@ -112,24 +120,7 @@ fun WorkoutScreen(
     onDismissFinishDialog: () -> Unit = {},
     onConfirmFinishWorkout: () -> Unit = onStopWorkout
 ) {
-    val context = LocalContext.current
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { }
-
-    val requestNotificationPermissionIfNeeded = {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val permissionState = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            )
-            if (permissionState != PackageManager.PERMISSION_GRANTED) {
-                runCatching {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        }
-    }
+    val requestNotificationPermissionIfNeeded = rememberNotificationPermissionRequester()
 
     Box(
         modifier = Modifier
@@ -512,7 +503,7 @@ private fun CompletedSetCard(setEntity: WorkoutSetEntity) {
             }
 
             Text(
-                text = "${formatWeightValue(setEntity.weightKg)} kg × ${setEntity.reps}",
+                text = "${formatCompactNumber(setEntity.weightKg)} kg × ${setEntity.reps}",
                 fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
@@ -537,6 +528,12 @@ private fun ActiveWorkoutContent(
     onAddSet: () -> Unit,
     onDeleteSessionSet: (Long) -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DismissKeyboardOnScroll(listState.isScrollInProgress)
+
     val bottomPadding = if (uiState.restTimerState.isRunning || uiState.restTimerState.alarmRinging) {
         130.dp
     } else {
@@ -544,9 +541,12 @@ private fun ActiveWorkoutContent(
     }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground),
+            .background(AppBackground)
+            .imePadding()
+            .dismissKeyboardOnTap(),
         contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
@@ -559,7 +559,11 @@ private fun ActiveWorkoutContent(
             ActiveWorkoutHeaderRow(
                 elapsedSeconds = uiState.elapsedSeconds,
                 liveCaloriesBurned = uiState.liveCaloriesBurned,
-                onRequestFinishWorkout = onRequestFinishWorkout
+                onRequestFinishWorkout = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onRequestFinishWorkout()
+                }
             )
         }
 
@@ -573,14 +577,38 @@ private fun ActiveWorkoutContent(
                 nextNormalSetNumber = uiState.nextNormalSetNumber,
                 exerciseSuggestions = uiState.exerciseSuggestions,
                 onExerciseNameChange = onExerciseNameChange,
-                onSelectExerciseSuggestion = onSelectExerciseSuggestion,
-                onSelectMuscleGroup = onSelectMuscleGroup,
+                onSelectExerciseSuggestion = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onSelectExerciseSuggestion(it)
+                },
+                onSelectMuscleGroup = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onSelectMuscleGroup(it)
+                },
                 onWeightChange = onWeightChange,
-                onStepWeight = onStepWeight,
+                onStepWeight = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onStepWeight(it)
+                },
                 onRepsChange = onRepsChange,
-                onStepReps = onStepReps,
-                onSelectSetType = onSelectSetType,
-                onAddSet = onAddSet
+                onStepReps = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onStepReps(it)
+                },
+                onSelectSetType = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onSelectSetType(it)
+                },
+                onAddSet = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onAddSet()
+                }
             )
         }
 
@@ -714,6 +742,9 @@ private fun ActiveSetEntryFormCard(
     onSelectSetType: (String) -> Unit,
     onAddSet: () -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
@@ -753,6 +784,13 @@ private fun ActiveSetEntryFormCard(
                     }
                 },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                ),
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary,
@@ -863,7 +901,7 @@ private fun ActiveSetEntryFormCard(
             Spacer(modifier = Modifier.height(18.dp))
 
             val canAddSet = exerciseInput.isNotBlank() &&
-                (weightInput.toDoubleOrNull() ?: 0.0) > 0.0 &&
+                (parseDecimalInput(weightInput) ?: 0.0) > 0.0 &&
                 (repsInput.toIntOrNull() ?: 0) > 0
 
             Button(
@@ -900,14 +938,37 @@ private fun StepperNumericBox(
     keyboardType: KeyboardType,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Column(modifier = modifier) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextMuted,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextMuted
+            )
+            if (isFocused) {
+                Text(
+                    text = "Done",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WorkoutVolt,
+                    modifier = Modifier.clickable {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                )
+            }
+        }
 
         Row(
             modifier = Modifier
@@ -948,8 +1009,19 @@ private fun StepperNumericBox(
                     textAlign = TextAlign.Center
                 ),
                 cursorBrush = SolidColor(WorkoutVolt),
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-                modifier = Modifier.weight(1f)
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { isFocused = it.isFocused }
             )
 
             Box(
@@ -1081,7 +1153,7 @@ private fun ActiveSessionSetCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "${formatWeightValue(setItem.weightKg)} kg × ${setItem.reps}",
+                    text = "${formatCompactNumber(setItem.weightKg)} kg × ${setItem.reps}",
                     fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -1372,13 +1444,5 @@ private fun FinishMetricSummaryBox(
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
-    }
-}
-
-private fun formatWeightValue(weightKg: Double): String {
-    return if (weightKg % 1.0 == 0.0) {
-        weightKg.toInt().toString()
-    } else {
-        "%.1f".format(Locale.US, weightKg)
     }
 }

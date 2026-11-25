@@ -6,7 +6,7 @@ import com.mulocoolbot.gymtracker.data.local.WorkoutSessionEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.ui.home.HomeViewModel
 import java.io.File
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -62,7 +62,7 @@ class HomeViewModelTest {
                 3 to "Push Day"
             )
         )
-        val mondayDate = LocalDate.of(2026, 11, 2)
+        val mondayDate = LocalDate(2026, 11, 2)
         val viewModel = HomeViewModel(repository = repository, currentDate = mondayDate)
 
         assertEquals(1, viewModel.uiState.value.selectedDayOfWeek)
@@ -84,7 +84,7 @@ class HomeViewModelTest {
                 1 to "Pull Day"
             )
         )
-        val mondayDate = LocalDate.of(2026, 11, 2)
+        val mondayDate = LocalDate(2026, 11, 2)
         val viewModel = HomeViewModel(repository = repository, currentDate = mondayDate)
 
         viewModel.selectDay(0)
@@ -98,8 +98,8 @@ class HomeViewModelTest {
     @Test
     fun tc_ui1_03_calorie_progress_bar_boundaries() = runTest {
         val (dao, repository) = createEnvironment(backgroundScope)
-        val mondayDate = LocalDate.of(2026, 11, 2)
-        val epochDay = mondayDate.toEpochDay()
+        val mondayDate = LocalDate(2026, 11, 2)
+        val epochDay = mondayDate.toEpochDays().toLong()
         val viewModel = HomeViewModel(repository = repository, currentDate = mondayDate)
 
         assertEquals(0, viewModel.uiState.value.todayCalories)
@@ -141,7 +141,7 @@ class HomeViewModelTest {
                 4 to "Upper Body"
             )
         )
-        val mondayDate = LocalDate.of(2026, 11, 2)
+        val mondayDate = LocalDate(2026, 11, 2)
         val viewModel = HomeViewModel(repository = repository, currentDate = mondayDate)
 
         assertFalse(viewModel.uiState.value.selectedDayPlan.isRestDay)

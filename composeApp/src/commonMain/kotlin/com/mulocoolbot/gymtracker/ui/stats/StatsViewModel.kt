@@ -3,14 +3,14 @@ package com.mulocoolbot.gymtracker.ui.stats
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mulocoolbot.gymtracker.data.local.ExerciseHistoryEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import com.mulocoolbot.gymtracker.util.formatCompactNumber
+import com.mulocoolbot.gymtracker.util.formatShortMonthDay
 import kotlin.math.abs
 import kotlin.math.round
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -243,8 +243,6 @@ class StatsViewModel(
     )
 
     companion object {
-        private val POINT_DATE_FORMATTER = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
-
         private val MUSCLE_DEFINITIONS: LinkedHashMap<String, Pair<String, HeatmapOrientation>> = linkedMapOf(
             "CHEST" to ("Chest" to HeatmapOrientation.FRONT),
             "SHOULDERS" to ("Shoulders" to HeatmapOrientation.FRONT),
@@ -285,10 +283,7 @@ class StatsViewModel(
                     WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
                 }
                 val dateLabel = if (set.timestampMillis >= 86_400_000L) {
-                    Instant.ofEpochMilli(set.timestampMillis)
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate()
-                        .format(POINT_DATE_FORMATTER)
+                    formatShortMonthDay(set.timestampMillis)
                 } else {
                     "Set ${index + 1}"
                 }
@@ -336,7 +331,7 @@ class StatsViewModel(
             val counts = MUSCLE_DEFINITIONS.keys.associateWith { 0 }.toMutableMap()
 
             allSets.forEach { set ->
-                val storedMuscle = historyByExercise[set.exerciseName]?.muscleGroup?.uppercase(Locale.US)
+                val storedMuscle = historyByExercise[set.exerciseName]?.muscleGroup?.uppercase()
                 val matchedIds = inferMuscleIdsForExercise(
                     exerciseName = set.exerciseName,
                     storedMuscle = storedMuscle
@@ -360,7 +355,7 @@ class StatsViewModel(
             exerciseName: String,
             storedMuscle: String?
         ): String {
-            val upperStored = storedMuscle?.trim()?.uppercase(Locale.US)
+            val upperStored = storedMuscle?.trim()?.uppercase()
             if (upperStored != null && upperStored in MUSCLE_DEFINITIONS) {
                 return upperStored
             }
@@ -376,7 +371,7 @@ class StatsViewModel(
                 matched.add(storedMuscle)
             }
 
-            val name = exerciseName.lowercase(Locale.US)
+            val name = exerciseName.lowercase()
             if (name.containsAny("bench", "chest", "pec", "fly", "push up", "pushup", "dip")) {
                 matched.add("CHEST")
             }
@@ -454,7 +449,7 @@ class StatsViewModel(
         fun inferTrainedMuscles(exerciseNames: Iterable<String>): Set<MuscleRegion> {
             val regions = mutableSetOf<MuscleRegion>()
             exerciseNames.forEach { rawName ->
-                val name = rawName.lowercase(Locale.US)
+                val name = rawName.lowercase()
                 if (name.containsAny("bench", "chest", "pec", "fly", "push up", "pushup", "dip")) {
                     regions.add(MuscleRegion.CHEST)
                 }
@@ -486,25 +481,12 @@ class StatsViewModel(
             return regions
         }
 
-        private fun formatCompactNumber(value: Double): String {
-            return if (value % 1.0 == 0.0) {
-                value.toInt().toString()
-            } else {
-                "%.1f".format(Locale.US, value)
-            }
-        }
-
         private fun String.containsAny(vararg keywords: String): Boolean {
             return keywords.any { this.contains(it) }
         }
 
-        fun factory(repository: GymRepository): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return StatsViewModel(repository) as T
-                }
-            }
+        fun factory(repository: GymRepository): ViewModelProvider.Factory = viewModelFactory {
+            initializer { StatsViewModel(repository) }
         }
     }
 }
