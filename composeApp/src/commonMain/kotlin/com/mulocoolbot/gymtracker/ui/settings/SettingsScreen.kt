@@ -94,6 +94,25 @@ private val SettingsWhite = Color(0xFFFFFFFF)
 private val SettingsMuted = Color(0xFF8C92A4)
 private val SettingsDanger = Color(0xFFEF4444)
 
+internal data class BackupStatusFeedback(
+    val message: String,
+    val isError: Boolean
+)
+
+internal fun resolveBackupImportFeedback(restored: Boolean): BackupStatusFeedback {
+    return if (restored) {
+        BackupStatusFeedback(
+            message = "Backup restored successfully (5 tables verified).",
+            isError = false
+        )
+    } else {
+        BackupStatusFeedback(
+            message = "Import rejected: invalid or corrupted 5-entity JSON. Existing data was kept safe.",
+            isError = true
+        )
+    }
+}
+
 @Composable
 fun SettingsScreen(
     authSession: AuthSession,
@@ -111,9 +130,12 @@ fun SettingsScreen(
 
     DismissKeyboardOnScroll(scrollState.isScrollInProgress)
 
+    var backupFeedback by remember { mutableStateOf<BackupStatusFeedback?>(null) }
+
     val backupController = rememberJsonBackupController { jsonContent ->
         coroutineScope.launch {
-            onImportBackup(jsonContent)
+            val restored = onImportBackup(jsonContent)
+            backupFeedback = resolveBackupImportFeedback(restored)
         }
     }
 
@@ -152,6 +174,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         DataBackupBentoCard(
+            feedback = backupFeedback,
             onExportClick = {
                 focusManager.clearFocus()
                 keyboardController?.hide()
@@ -159,12 +182,16 @@ fun SettingsScreen(
                     val json = onExportBackup()
                     if (json.isNotEmpty()) {
                         backupController.exportJson("mfit_backup.json", json)
+                        backupFeedback = BackupStatusFeedback("Backup JSON ready to export.", isError = false)
+                    } else {
+                        backupFeedback = BackupStatusFeedback("Nothing to export yet.", isError = true)
                     }
                 }
             },
             onImportClick = {
                 focusManager.clearFocus()
                 keyboardController?.hide()
+                backupFeedback = null
                 backupController.launchImport()
             }
         )
@@ -504,11 +531,20 @@ private fun AccountInfoBentoCard(
     onToggleGoogleLink: (defaultEmail: String) -> Unit,
     onToggleEmailLink: (emailInput: String) -> Unit
 ) {
+    val authBridge = remember { createAuthBridge() }
     var showEmailOtpLinkDialog by remember { mutableStateOf(false) }
+    var accountStatusMessage by remember { mutableStateOf<String?>(null) }
 
     val launchGoogleLink = rememberGoogleSignInAction(
         onSuccess = { selectedEmail, _ ->
+            accountStatusMessage = null
             onToggleGoogleLink(selectedEmail)
+        },
+        onErrorOrCancel = {
+            if (!authBridge.isCloudAuthConfigured) {
+                accountStatusMessage =
+                    "Offline-first mode: GoogleService-Info.plist is not configured. Your data stays safely stored on device."
+            }
         }
     )
 
@@ -519,22 +555,56 @@ private fun AccountInfoBentoCard(
         border = BorderStroke(1.dp, SettingsBorder)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = "ACCOUNT INFO",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 0.8.sp,
-                color = SettingsMuted
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ACCOUNT INFO",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp,
+                    color = SettingsMuted
+                )
+
+                if (!authBridge.isCloudAuthConfigured || authSession.isOfflineMode) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(SettingsInnerBg)
+                            .border(1.dp, SettingsBorder, RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "OFFLINE-FIRST",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.6.sp,
+                            color = SettingsVolt
+                        )
+                    }
+                }
+            }
+
+            if (!authBridge.isCloudAuthConfigured) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Local-only storage active. Account linking is optional; workouts and JSON backups work offline without Firebase.",
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = SettingsMuted
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
             ProviderStatusBentoRow(
                 providerName = "Google",
-                linkedAddress = if (authSession.isGoogleLinked) {
-                    authSession.googleEmail ?: "Linked"
-                } else {
-                    "Not linked"
+                linkedAddress = when {
+                    authSession.isGoogleLinked -> authSession.googleEmail ?: "Linked"
+                    !authBridge.isCloudAuthConfigured -> "Offline-first (Not configured)"
+                    else -> "Not linked"
                 },
                 isLinked = authSession.isGoogleLinked,
                 iconContent = {
@@ -547,6 +617,7 @@ private fun AccountInfoBentoCard(
                 },
                 onActionClick = {
                     if (authSession.isGoogleLinked) {
+                        accountStatusMessage = null
                         onToggleGoogleLink("")
                     } else {
                         launchGoogleLink()
@@ -569,12 +640,23 @@ private fun AccountInfoBentoCard(
                 },
                 onActionClick = {
                     if (authSession.isEmailLinked) {
+                        accountStatusMessage = null
                         onToggleEmailLink("")
                     } else {
                         showEmailOtpLinkDialog = true
                     }
                 }
             )
+
+            if (!accountStatusMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = accountStatusMessage!!,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = SettingsMuted
+                )
+            }
         }
     }
 
@@ -583,6 +665,7 @@ private fun AccountInfoBentoCard(
             onDismiss = { showEmailOtpLinkDialog = false },
             onVerifiedEmail = { verifiedEmail ->
                 showEmailOtpLinkDialog = false
+                accountStatusMessage = null
                 onToggleEmailLink(verifiedEmail)
             }
         )
@@ -860,6 +943,7 @@ private fun LinkEmailOtpDialog(
 
 @Composable
 private fun DataBackupBentoCard(
+    feedback: BackupStatusFeedback?,
     onExportClick: () -> Unit,
     onImportClick: () -> Unit
 ) {
@@ -922,6 +1006,17 @@ private fun DataBackupBentoCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+
+            if (feedback != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = feedback.message,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (feedback.isError) SettingsDanger else SettingsVolt
+                )
             }
         }
     }

@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 
 interface AuthBridge {
     val isGoogleSignInSupported: Boolean
+    val isCloudAuthConfigured: Boolean
+        get() = isGoogleSignInSupported
     fun syncEmailCredentials(email: String, password: String, isRegister: Boolean)
     suspend fun deliverOtp(email: String, otpCode: String)
 }

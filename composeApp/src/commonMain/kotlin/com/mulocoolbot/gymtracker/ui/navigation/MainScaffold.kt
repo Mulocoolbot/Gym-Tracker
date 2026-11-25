@@ -137,7 +137,8 @@ fun MainScaffold(
                     authEntryMode = authUiState.authEntryMode,
                     onSwitchAuthMode = authViewModel::setAuthEntryMode,
                     onBackToWelcome = authViewModel::onBackToWelcome,
-                    onAuthError = authViewModel::setAuthErrorMessage
+                    onAuthError = authViewModel::setAuthErrorMessage,
+                    onContinueOffline = authViewModel::onContinueOffline
                 )
             }
 

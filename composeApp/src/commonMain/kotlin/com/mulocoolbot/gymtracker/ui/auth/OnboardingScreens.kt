@@ -35,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -189,14 +190,15 @@ fun SignInScreen(
     isLinkingFromSettings: Boolean = false,
     onSwitchAuthMode: (AuthEntryMode) -> Unit = {},
     onBackToWelcome: () -> Unit = {},
-    onAuthError: (String) -> Unit = {}
+    onAuthError: (String) -> Unit = {},
+    onContinueOffline: () -> Unit = {}
 ) {
     val authBridge = remember { createAuthBridge() }
     val launchGoogleAuth = rememberGoogleSignInAction(
         onSuccess = onGoogleAuthenticated,
         onErrorOrCancel = {
             if (!authBridge.isGoogleSignInSupported) {
-                onAuthError("Google Sign-In is unavailable without Google configuration. Use Email verification.")
+                onAuthError("Offline-first mode: Google Sign-In is unavailable without Firebase config. Continue offline or verify with Email.")
             }
         }
     )
@@ -206,11 +208,13 @@ fun SignInScreen(
             EmailInputStepContent(
                 authEntryMode = authEntryMode,
                 isLinkingFromSettings = isLinkingFromSettings,
+                isCloudAuthConfigured = authBridge.isCloudAuthConfigured,
                 otpErrorMessage = otpErrorMessage,
                 onSwitchAuthMode = onSwitchAuthMode,
                 onBackToWelcome = onBackToWelcome,
                 onContinueWithGoogle = launchGoogleAuth,
                 onSendCode = onSendEmailOtp,
+                onContinueOffline = onContinueOffline,
                 onClearError = onClearError
             )
         }
@@ -232,11 +236,13 @@ fun SignInScreen(
 private fun EmailInputStepContent(
     authEntryMode: AuthEntryMode,
     isLinkingFromSettings: Boolean,
+    isCloudAuthConfigured: Boolean,
     otpErrorMessage: String?,
     onSwitchAuthMode: (AuthEntryMode) -> Unit,
     onBackToWelcome: () -> Unit,
     onContinueWithGoogle: () -> Unit,
     onSendCode: (String) -> Unit,
+    onContinueOffline: () -> Unit,
     onClearError: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
@@ -327,6 +333,33 @@ private fun EmailInputStepContent(
             fontSize = 14.sp,
             color = AuthMuted
         )
+
+        if (!isCloudAuthConfigured && !isLinkingFromSettings) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = AuthCardBg),
+                border = BorderStroke(1.dp, AuthVolt.copy(alpha = 0.45f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "OFFLINE-FIRST READY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.8.sp,
+                        color = AuthVolt
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Firebase iOS (GoogleService-Info.plist) is not configured. All workouts, rest timers, and JSON backups work 100% offline without an account.",
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        color = AuthMuted
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -454,6 +487,34 @@ private fun EmailInputStepContent(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (!isLinkingFromSettings) {
+            OutlinedButton(
+                onClick = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    onContinueOffline()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, AuthBorder),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = AuthCardBg,
+                    contentColor = AuthWhite
+                )
+            ) {
+                Text(
+                    text = "Continue Offline Without Account",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AuthWhite
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Box(
             modifier = Modifier.fillMaxWidth(),

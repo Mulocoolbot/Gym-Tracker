@@ -10,6 +10,11 @@ import com.mulocoolbot.gymtracker.data.local.WorkoutSessionEntity
 import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 object GymBackupManager {
 
@@ -34,32 +39,84 @@ object GymBackupManager {
         return json.encodeToString(GymBackupPayload.serializer(), payload)
     }
 
-    suspend fun importFromJson(dao: GymDao, jsonString: String): Boolean {
+    fun validateBackupJson(jsonString: String): GymBackupPayload? {
         val trimmed = jsonString.trim()
-        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null
+
+        val root = runCatching {
+            json.parseToJsonElement(trimmed) as? JsonObject
+        }.getOrNull() ?: return null
+
+        val schemaVersion = (root["schemaVersion"] as? JsonPrimitive)?.intOrNull ?: return null
+        if (schemaVersion !in 1..CURRENT_SCHEMA_VERSION) return null
+
+        val userProfileNode = root["userProfile"]
+        if (userProfileNode != null && userProfileNode !is JsonNull && userProfileNode !is JsonObject) {
+            return null
+        }
+        if (root["workoutPlans"] !is JsonArray) return null
+        if (root["exerciseHistory"] !is JsonArray) return null
+        if (root["workoutSessions"] !is JsonArray) return null
+        if (root["workoutSets"] !is JsonArray) return null
 
         val payload = runCatching {
             json.decodeFromString(GymBackupPayload.serializer(), trimmed)
-        }.getOrNull() ?: return false
+        }.getOrNull() ?: return null
 
-        if (payload.schemaVersion <= 0) return false
+        return payload.takeIf(::isPayloadValid)
+    }
+
+    suspend fun importFromJson(dao: GymDao, jsonString: String): Boolean {
+        val payload = validateBackupJson(jsonString) ?: return false
 
         return runCatching {
-            payload.userProfile?.let { dao.upsertUserProfile(it.toEntity()) }
-            if (payload.workoutPlans.isNotEmpty()) {
-                dao.upsertWorkoutPlans(payload.workoutPlans.map { it.toEntity() })
-            }
-            if (payload.exerciseHistory.isNotEmpty()) {
-                dao.upsertExerciseHistories(payload.exerciseHistory.map { it.toEntity() })
-            }
-            if (payload.workoutSessions.isNotEmpty()) {
-                dao.insertSessions(payload.workoutSessions.map { it.toEntity() })
-            }
-            if (payload.workoutSets.isNotEmpty()) {
-                dao.insertSets(payload.workoutSets.map { it.toEntity() })
-            }
+            dao.replaceAllBackupData(
+                profile = payload.userProfile?.toEntity(),
+                plans = payload.workoutPlans.map { it.toEntity() },
+                history = payload.exerciseHistory.map { it.toEntity() },
+                sessions = payload.workoutSessions.map { it.toEntity() },
+                sets = payload.workoutSets.map { it.toEntity() }
+            )
             true
         }.getOrDefault(false)
+    }
+
+    private fun isPayloadValid(payload: GymBackupPayload): Boolean {
+        if (payload.schemaVersion !in 1..CURRENT_SCHEMA_VERSION) return false
+
+        payload.userProfile?.let { profile ->
+            if (profile.uid.isBlank() || profile.name.isBlank()) return false
+            if (!profile.heightCm.isFinite() || profile.heightCm <= 0.0) return false
+            if (!profile.weightKg.isFinite() || profile.weightKg <= 0.0) return false
+            if (profile.currentStreak < 0 || profile.consecutiveMissed < 0) return false
+        }
+
+        val planDays = HashSet<Int>(payload.workoutPlans.size)
+        for (plan in payload.workoutPlans) {
+            if (plan.dayOfWeek !in 0..6 || !planDays.add(plan.dayOfWeek)) return false
+        }
+
+        for (history in payload.exerciseHistory) {
+            if (history.normalizedName.isBlank()) return false
+        }
+
+        val sessionIds = HashSet<Long>(payload.workoutSessions.size)
+        for (session in payload.workoutSessions) {
+            if (session.sessionId <= 0L || !sessionIds.add(session.sessionId)) return false
+            if (session.caloriesBurned < 0) return false
+        }
+
+        val setIds = HashSet<Long>(payload.workoutSets.size)
+        for (set in payload.workoutSets) {
+            if (set.setId < 0L) return false
+            if (set.setId > 0L && !setIds.add(set.setId)) return false
+            if (set.sessionId !in sessionIds) return false
+            if (set.exerciseName.isBlank() || set.reps <= 0) return false
+            if (!set.weightKg.isFinite() || set.weightKg < 0.0) return false
+            if (!set.e1rm.isFinite() || set.e1rm < 0.0) return false
+        }
+
+        return true
     }
 
     @Serializable

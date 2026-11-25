@@ -28,6 +28,23 @@ internal class TestInMemoryGymDao : GymDao {
         profileState.value = null
     }
 
+    override suspend fun clearWorkoutPlans() {
+        plansState.value = emptyMap()
+    }
+
+    override suspend fun clearExerciseHistory() {
+        historyState.value = emptyMap()
+    }
+
+    override suspend fun clearWorkoutSessions() {
+        sessionsState.value = emptyMap()
+        setsState.value = emptyMap()
+    }
+
+    override suspend fun clearWorkoutSets() {
+        setsState.value = emptyMap()
+    }
+
     override fun observeWorkoutPlans(): Flow<List<WorkoutPlanEntity>> {
         return plansState.map { it.values.sortedBy { plan -> plan.dayOfWeek } }
     }

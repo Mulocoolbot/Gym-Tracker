@@ -2,6 +2,7 @@ package com.mulocoolbot.gymtracker.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import platform.Foundation.NSBundle
 import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
@@ -9,9 +10,10 @@ import platform.UserNotifications.UNTimeIntervalNotificationTrigger
 import platform.UserNotifications.UNUserNotificationCenter
 
 private object IosAuthBridge : AuthBridge {
-    private const val OTP_NOTIFICATION_ID = "mfit_otp_code"
-
     override val isGoogleSignInSupported: Boolean = false
+
+    override val isCloudAuthConfigured: Boolean
+        get() = hasFirebasePlist()
 
     override fun syncEmailCredentials(email: String, password: String, isRegister: Boolean) = Unit
 
@@ -27,12 +29,21 @@ private object IosAuthBridge : AuthBridge {
             repeats = false
         )
         val request = UNNotificationRequest.requestWithIdentifier(
-            identifier = OTP_NOTIFICATION_ID,
+            identifier = IOS_OTP_NOTIFICATION_ID,
             content = content,
             trigger = trigger
         )
         UNUserNotificationCenter.currentNotificationCenter()
             .addNotificationRequest(request, withCompletionHandler = null)
+    }
+
+    private fun hasFirebasePlist(): Boolean {
+        return runCatching {
+            NSBundle.mainBundle.pathForResource(
+                name = "GoogleService-Info",
+                ofType = "plist"
+            ) != null
+        }.getOrDefault(false)
     }
 }
 

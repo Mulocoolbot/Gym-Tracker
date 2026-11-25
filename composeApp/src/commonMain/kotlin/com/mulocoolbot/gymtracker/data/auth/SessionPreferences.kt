@@ -28,6 +28,7 @@ class SessionPreferences(
             userEmail = prefs[KEY_USER_EMAIL],
             isGoogleLinked = prefs[KEY_IS_GOOGLE_LINKED] ?: false,
             isEmailLinked = prefs[KEY_IS_EMAIL_LINKED] ?: false,
+            isOfflineMode = prefs[KEY_IS_OFFLINE_MODE] ?: false,
             isProfileCompleted = prefs[KEY_IS_PROFILE_COMPLETED] ?: false,
             registeredEmails = extractRegisteredEmails(prefs)
         )
@@ -144,7 +145,8 @@ class SessionPreferences(
         dataStore.edit { prefs ->
             val currentUid = prefs[KEY_UID].orEmpty()
             val isCurrentlyAuthenticated = (prefs[KEY_IS_GOOGLE_LINKED] ?: false) ||
-                (prefs[KEY_IS_EMAIL_LINKED] ?: false)
+                (prefs[KEY_IS_EMAIL_LINKED] ?: false) ||
+                (prefs[KEY_IS_OFFLINE_MODE] ?: false)
             val existingEmails = extractRegisteredEmails(prefs)
             val wasRegistered = lowerEmail in existingEmails
             val registeredGoogle = prefs[KEY_REGISTERED_GOOGLE_EMAIL]
@@ -183,7 +185,8 @@ class SessionPreferences(
         dataStore.edit { prefs ->
             val currentUid = prefs[KEY_UID].orEmpty()
             val isCurrentlyAuthenticated = (prefs[KEY_IS_GOOGLE_LINKED] ?: false) ||
-                (prefs[KEY_IS_EMAIL_LINKED] ?: false)
+                (prefs[KEY_IS_EMAIL_LINKED] ?: false) ||
+                (prefs[KEY_IS_OFFLINE_MODE] ?: false)
             val existingEmails = extractRegisteredEmails(prefs)
             val wasRegistered = lowerEmail in existingEmails
             val registeredEmail = prefs[KEY_REGISTERED_EMAIL]
@@ -222,6 +225,18 @@ class SessionPreferences(
         dataStore.edit { prefs ->
             prefs.remove(KEY_USER_EMAIL)
             prefs[KEY_IS_EMAIL_LINKED] = false
+        }
+    }
+
+    suspend fun continueOffline(preferredUid: String? = null) {
+        dataStore.edit { prefs ->
+            val resolvedUid = prefs[KEY_UID].orEmpty()
+                .ifBlank { prefs[KEY_REGISTERED_UID].orEmpty() }
+                .ifBlank { preferredUid.orEmpty().trim() }
+                .ifBlank { computeUidForEmail("offline-local@mfit.local") }
+            prefs[KEY_UID] = resolvedUid
+            prefs[KEY_REGISTERED_UID] = resolvedUid
+            prefs[KEY_IS_OFFLINE_MODE] = true
         }
     }
 
@@ -265,6 +280,7 @@ class SessionPreferences(
         private val KEY_REGISTERED_PASSWORD = stringPreferencesKey("registered_password")
         private val KEY_IS_GOOGLE_LINKED = booleanPreferencesKey("is_google_linked")
         private val KEY_IS_EMAIL_LINKED = booleanPreferencesKey("is_email_linked")
+        private val KEY_IS_OFFLINE_MODE = booleanPreferencesKey("is_offline_mode")
         private val KEY_IS_PROFILE_COMPLETED = booleanPreferencesKey("is_profile_completed")
         private val KEY_REST_WARMUP_SECONDS = intPreferencesKey("rest_warmup_seconds")
         private val KEY_REST_NORMAL_SECONDS = intPreferencesKey("rest_normal_seconds")

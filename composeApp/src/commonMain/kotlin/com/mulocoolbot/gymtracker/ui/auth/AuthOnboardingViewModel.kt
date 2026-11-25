@@ -58,6 +58,8 @@ data class AuthOnboardingUiState(
     val otpErrorMessage: String? = null,
     val resendCountdownSeconds: Int = 0,
     val suggestedDisplayName: String? = null,
+    val isCloudAuthConfigured: Boolean = true,
+    val isGoogleSignInSupported: Boolean = true,
     val authError: String? = otpErrorMessage
 )
 
@@ -107,6 +109,8 @@ class AuthOnboardingViewModel(
             otpErrorMessage = otpState.otpErrorMessage,
             resendCountdownSeconds = otpState.resendCountdownSeconds,
             suggestedDisplayName = otpState.suggestedDisplayName,
+            isCloudAuthConfigured = authBridge.isCloudAuthConfigured,
+            isGoogleSignInSupported = authBridge.isGoogleSignInSupported,
             authError = otpState.otpErrorMessage
         )
     }.stateIn(
@@ -137,6 +141,18 @@ class AuthOnboardingViewModel(
                 authEntryMode = AuthEntryMode.SIGN_IN,
                 otpErrorMessage = null
             )
+        }
+    }
+
+    fun onContinueOffline() {
+        otpFlowState.update {
+            it.copy(
+                hasPassedWelcome = true,
+                otpErrorMessage = null
+            )
+        }
+        viewModelScope.launch {
+            repository.continueOffline()
         }
     }
 

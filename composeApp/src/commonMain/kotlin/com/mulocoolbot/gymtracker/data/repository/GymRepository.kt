@@ -163,6 +163,17 @@ class GymRepository(
         syncAuthFlagsToProfile()
     }
 
+    suspend fun continueOffline() {
+        val existingProfile = dao.getUserProfile()
+        sessionPreferences.continueOffline(preferredUid = existingProfile?.uid)
+        if (existingProfile != null) {
+            sessionPreferences.markProfileCompleted(true)
+            syncAuthFlagsToProfile()
+        } else {
+            sessionPreferences.markProfileCompleted(false)
+        }
+    }
+
     suspend fun completeOnboardingProfile(
         name: String,
         birthDateMillis: Long,

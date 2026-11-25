@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,38 @@ interface GymDao {
 
     @Query("DELETE FROM user_profile")
     suspend fun clearUserProfile()
+
+    @Query("DELETE FROM workout_plan")
+    suspend fun clearWorkoutPlans()
+
+    @Query("DELETE FROM exercise_history")
+    suspend fun clearExerciseHistory()
+
+    @Query("DELETE FROM workout_session")
+    suspend fun clearWorkoutSessions()
+
+    @Query("DELETE FROM workout_set")
+    suspend fun clearWorkoutSets()
+
+    @Transaction
+    suspend fun replaceAllBackupData(
+        profile: UserProfileEntity?,
+        plans: List<WorkoutPlanEntity>,
+        history: List<ExerciseHistoryEntity>,
+        sessions: List<WorkoutSessionEntity>,
+        sets: List<WorkoutSetEntity>
+    ) {
+        clearWorkoutSets()
+        clearWorkoutSessions()
+        clearExerciseHistory()
+        clearWorkoutPlans()
+        clearUserProfile()
+        profile?.let { upsertUserProfile(it) }
+        if (plans.isNotEmpty()) upsertWorkoutPlans(plans)
+        if (history.isNotEmpty()) upsertExerciseHistories(history)
+        if (sessions.isNotEmpty()) insertSessions(sessions)
+        if (sets.isNotEmpty()) insertSets(sets)
+    }
 
     @Query("SELECT * FROM workout_plan ORDER BY dayOfWeek ASC")
     fun observeWorkoutPlans(): Flow<List<WorkoutPlanEntity>>

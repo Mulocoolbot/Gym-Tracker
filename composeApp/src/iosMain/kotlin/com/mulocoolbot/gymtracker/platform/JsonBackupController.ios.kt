@@ -2,7 +2,11 @@ package com.mulocoolbot.gymtracker.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.CoreGraphics.CGRectGetMidX
+import platform.CoreGraphics.CGRectGetMidY
+import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSString
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
@@ -13,6 +17,7 @@ import platform.Foundation.writeToFile
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
+import platform.UIKit.UIViewController
 import platform.UIKit.popoverPresentationController
 import platform.UniformTypeIdentifiers.UTTypeJSON
 import platform.darwin.NSObject
@@ -32,12 +37,16 @@ private class IosJsonBackupController(
 
     private var activePickerDelegate: DocumentPickerDelegate? = null
 
-    @OptIn(ExperimentalForeignApi::class)
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     override fun exportJson(fileName: String, jsonContent: String) {
         if (jsonContent.isEmpty()) return
+        val safeFileName = fileName.trim()
+            .ifEmpty { "mfit_backup.json" }
+            .let { if (it.endsWith(".json", ignoreCase = true)) it else "$it.json" }
+
         val tempDir = NSTemporaryDirectory()
         val separator = if (tempDir.endsWith("/")) "" else "/"
-        val filePath = "$tempDir$separator$fileName"
+        val filePath = "$tempDir$separator$safeFileName"
         val nsString = NSString.create(string = jsonContent)
         val written = nsString.writeToFile(
             path = filePath,
@@ -53,19 +62,23 @@ private class IosJsonBackupController(
             activityItems = listOf(fileUrl),
             applicationActivities = null
         )
-        activityController.popoverPresentationController?.sourceView = presenter.view
+        configurePopoverAnchor(activityController, presenter)
         presenter.presentViewController(activityController, animated = true, completion = null)
     }
 
+    @OptIn(ExperimentalForeignApi::class)
     override fun launchImport() {
         val presenter = findTopViewController() ?: return
-        val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypeJSON))
+        val picker = UIDocumentPickerViewController(
+            forOpeningContentTypes = listOf(UTTypeJSON),
+            asCopy = true
+        ).apply {
+            allowsMultipleSelection = false
+        }
         val delegate = DocumentPickerDelegate(
             onPicked = { content ->
                 activePickerDelegate = null
-                if (!content.isNullOrBlank()) {
-                    onImportJson(content)
-                }
+                onImportJson(content.orEmpty())
             },
             onCancelled = {
                 activePickerDelegate = null
@@ -73,7 +86,26 @@ private class IosJsonBackupController(
         )
         activePickerDelegate = delegate
         picker.delegate = delegate
+        configurePopoverAnchor(picker, presenter)
         presenter.presentViewController(picker, animated = true, completion = null)
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    private fun configurePopoverAnchor(
+        presentedController: UIViewController,
+        presenter: UIViewController
+    ) {
+        presentedController.popoverPresentationController?.let { popover ->
+            popover.sourceView = presenter.view
+            val bounds = presenter.view.bounds
+            popover.sourceRect = CGRectMake(
+                CGRectGetMidX(bounds),
+                CGRectGetMidY(bounds),
+                0.0,
+                0.0
+            )
+            popover.permittedArrowDirections = 0uL
+        }
     }
 
     private class DocumentPickerDelegate(
