@@ -30,7 +30,9 @@ class SessionPreferences(
             isEmailLinked = prefs[KEY_IS_EMAIL_LINKED] ?: false,
             isOfflineMode = prefs[KEY_IS_OFFLINE_MODE] ?: false,
             isProfileCompleted = prefs[KEY_IS_PROFILE_COMPLETED] ?: false,
-            registeredEmails = extractRegisteredEmails(prefs)
+            registeredEmails = extractRegisteredEmails(prefs),
+            shouldShowTutorial = prefs[KEY_SHOULD_SHOW_TUTORIAL] ?: false,
+            hasCompletedTutorial = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
         )
     }
 
@@ -76,7 +78,10 @@ class SessionPreferences(
             val newUid = generateUid(normalizedEmail)
             val previousUid = prefs[KEY_UID].orEmpty()
             val isSameUser = previousUid == newUid && prefs[KEY_IS_PROFILE_COMPLETED] == true
-            val updatedEmails = extractRegisteredEmails(prefs) + lowerEmail
+            val existingEmails = extractRegisteredEmails(prefs)
+            val wasRegistered = lowerEmail in existingEmails
+            val hasCompleted = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
+            val updatedEmails = existingEmails + lowerEmail
 
             prefs[KEY_UID] = newUid
             prefs[KEY_REGISTERED_UID] = newUid
@@ -86,6 +91,7 @@ class SessionPreferences(
             prefs[KEY_REGISTERED_PASSWORD] = password
             prefs[KEY_IS_EMAIL_LINKED] = true
             prefs[KEY_IS_PROFILE_COMPLETED] = isSameUser
+            prefs[KEY_SHOULD_SHOW_TUTORIAL] = !wasRegistered && !isSameUser && !hasCompleted
         }
         return true
     }
@@ -125,6 +131,9 @@ class SessionPreferences(
                 prefs[KEY_REGISTERED_PASSWORD] = password
                 prefs[KEY_IS_EMAIL_LINKED] = true
                 authenticated = true
+            }
+            if (authenticated) {
+                prefs[KEY_SHOULD_SHOW_TUTORIAL] = false
             }
         }
 
@@ -171,6 +180,12 @@ class SessionPreferences(
             } else if (!isCurrentlyAuthenticated && !wasRegistered) {
                 prefs[KEY_IS_PROFILE_COMPLETED] = false
             }
+
+            if (!isCurrentlyAuthenticated) {
+                val hasCompleted = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
+                prefs[KEY_SHOULD_SHOW_TUTORIAL] =
+                    entryMode == AuthEntryMode.SIGN_IN && !wasRegistered && !hasCompleted
+            }
         }
     }
 
@@ -211,6 +226,12 @@ class SessionPreferences(
             } else if (!isCurrentlyAuthenticated && !wasRegistered) {
                 prefs[KEY_IS_PROFILE_COMPLETED] = false
             }
+
+            if (!isCurrentlyAuthenticated) {
+                val hasCompleted = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
+                prefs[KEY_SHOULD_SHOW_TUTORIAL] =
+                    entryMode == AuthEntryMode.SIGN_IN && !wasRegistered && !hasCompleted
+            }
         }
     }
 
@@ -237,12 +258,26 @@ class SessionPreferences(
             prefs[KEY_UID] = resolvedUid
             prefs[KEY_REGISTERED_UID] = resolvedUid
             prefs[KEY_IS_OFFLINE_MODE] = true
+            prefs[KEY_SHOULD_SHOW_TUTORIAL] = false
         }
     }
 
     suspend fun markProfileCompleted(completed: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_IS_PROFILE_COMPLETED] = completed
+        }
+    }
+
+    suspend fun setShouldShowTutorial(shouldShow: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_SHOULD_SHOW_TUTORIAL] = shouldShow
+        }
+    }
+
+    suspend fun markTutorialCompleted() {
+        dataStore.edit { prefs ->
+            prefs[KEY_SHOULD_SHOW_TUTORIAL] = false
+            prefs[KEY_HAS_COMPLETED_TUTORIAL] = true
         }
     }
 
@@ -282,6 +317,8 @@ class SessionPreferences(
         private val KEY_IS_EMAIL_LINKED = booleanPreferencesKey("is_email_linked")
         private val KEY_IS_OFFLINE_MODE = booleanPreferencesKey("is_offline_mode")
         private val KEY_IS_PROFILE_COMPLETED = booleanPreferencesKey("is_profile_completed")
+        private val KEY_SHOULD_SHOW_TUTORIAL = booleanPreferencesKey("should_show_tutorial")
+        private val KEY_HAS_COMPLETED_TUTORIAL = booleanPreferencesKey("has_completed_tutorial")
         private val KEY_REST_WARMUP_SECONDS = intPreferencesKey("rest_warmup_seconds")
         private val KEY_REST_NORMAL_SECONDS = intPreferencesKey("rest_normal_seconds")
         private val KEY_REST_FINAL_SECONDS = intPreferencesKey("rest_final_seconds")

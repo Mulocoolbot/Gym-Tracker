@@ -8,7 +8,9 @@ data class AuthSession(
     val isEmailLinked: Boolean = false,
     val isOfflineMode: Boolean = false,
     val isProfileCompleted: Boolean = false,
-    val registeredEmails: Set<String> = emptySet()
+    val registeredEmails: Set<String> = emptySet(),
+    val shouldShowTutorial: Boolean = false,
+    val hasCompletedTutorial: Boolean = false
 ) {
     val isAuthenticated: Boolean
         get() = uid.isNotBlank() && (isGoogleLinked || isEmailLinked || isOfflineMode)

@@ -31,11 +31,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -49,6 +56,7 @@ import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.platform.PlatformPermissionsRequester
 import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
 import com.mulocoolbot.gymtracker.platform.rememberNotificationPermissionRequester
+import com.mulocoolbot.gymtracker.platform.supportsTutorialBlur
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.ui.auth.AppStartDestination
 import com.mulocoolbot.gymtracker.ui.auth.AuthOnboardingUiState
@@ -70,6 +78,10 @@ import com.mulocoolbot.gymtracker.ui.theme.MonoMetricMedium
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
+import com.mulocoolbot.gymtracker.ui.tutorial.LocalTutorialTargets
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialController
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialOverlay
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutScreen
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutViewModel
 
@@ -196,164 +208,222 @@ private fun AuthenticatedMainContent(
 
     val homeState by homeViewModel.uiState.collectAsState()
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground),
-        containerColor = AppBackground,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            GymBottomBar(
-                currentRoute = currentRoute,
-                onSelectTab = { tab -> navigateToTab(navController, tab) }
-            )
+    val tutorialTargets = remember { mutableStateMapOf<TutorialTargetId, Rect>() }
+    val tutorialController = remember { TutorialController() }
+    val tutorialUiState = tutorialController.resolveUiState(authUiState.authSession)
+    val isTutorialActive = tutorialUiState.isActive
+    val currentTutorialStep = tutorialUiState.currentStep
+    val blurSupported = remember { supportsTutorialBlur() }
+    val contentLayer = rememberGraphicsLayer()
+
+    LaunchedEffect(isTutorialActive, tutorialUiState.stepIndex) {
+        if (isTutorialActive && currentRoute != currentTutorialStep.tab.route) {
+            navigateToTab(navController, currentTutorialStep.tab)
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AppBackground)
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                    )
-                )
-        ) {
-            if (timerState.alarmRinging) {
-                AlarmFinishedBanner(
-                    onDismiss = {
-                        timerBridge.stopBackgroundTimer()
-                        timerController.dismissOrSkip()
+    }
+
+    CompositionLocalProvider(
+        LocalTutorialTargets provides if (isTutorialActive) tutorialTargets else null
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        if (isTutorialActive && blurSupported) {
+                            contentLayer.record {
+                                this@drawWithContent.drawContent()
+                            }
+                            drawLayer(contentLayer)
+                        } else {
+                            drawContent()
+                        }
                     }
-                )
+            ) {
+                Scaffold(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(AppBackground),
+                    containerColor = AppBackground,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    bottomBar = {
+                        GymBottomBar(
+                            currentRoute = currentRoute,
+                            onSelectTab = { tab -> navigateToTab(navController, tab) }
+                        )
+                    }
+                ) { innerPadding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(AppBackground)
+                            .padding(innerPadding)
+                            .consumeWindowInsets(innerPadding)
+                            .windowInsetsPadding(
+                                WindowInsets.safeDrawing.only(
+                                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                                )
+                            )
+                    ) {
+                        if (timerState.alarmRinging) {
+                            AlarmFinishedBanner(
+                                onDismiss = {
+                                    timerBridge.stopBackgroundTimer()
+                                    timerController.dismissOrSkip()
+                                }
+                            )
+                        }
+
+                        NavHost(
+                            navController = navController,
+                            startDestination = BottomNavTab.HOME.route,
+                            modifier = Modifier.weight(1f),
+                            enterTransition = {
+                                fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
+                            },
+                            exitTransition = {
+                                fadeOut(tween(150))
+                            },
+                            popEnterTransition = {
+                                fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
+                            },
+                            popExitTransition = {
+                                fadeOut(tween(150))
+                            }
+                        ) {
+                            composable(BottomNavTab.HOME.route) {
+                                HomeScreen(
+                                    uiState = homeState,
+                                    onSelectDay = homeViewModel::selectDay,
+                                    onStartWorkout = {
+                                        ensureNotificationPermission()
+                                        workoutViewModel.startWorkout()
+                                        navigateToTab(navController, BottomNavTab.WORKOUT)
+                                    }
+                                )
+                            }
+
+                            composable(BottomNavTab.PLAN.route) {
+                                val planState by planViewModel.uiState.collectAsState()
+                                WorkoutPlanScreen(
+                                    uiState = planState,
+                                    onOpenWizard = planViewModel::startCreateOrEditPlan,
+                                    onToggleDay = planViewModel::toggleDaySelection,
+                                    onNextStep = planViewModel::goToInputPlanPage,
+                                    onBackToSelectDays = planViewModel::goToEditDaysPage,
+                                    onUpdateDraftName = planViewModel::updateDraftPlanName,
+                                    onRequestCancel = planViewModel::requestCancel,
+                                    onDismissDiscardDialog = planViewModel::dismissDiscardDialog,
+                                    onConfirmDiscard = planViewModel::confirmDiscard,
+                                    onSaveSchedule = planViewModel::saveWorkoutPlan
+                                )
+                            }
+
+                            composable(BottomNavTab.WORKOUT.route) {
+                                val workoutState by workoutViewModel.uiState.collectAsState()
+                                val activePlanName = if (homeState.selectedDayPlan.isRestDay) {
+                                    workoutState.todayPlanName
+                                } else {
+                                    homeState.selectedDayPlan.planName
+                                }
+
+                                WorkoutScreen(
+                                    uiState = workoutState,
+                                    onStartWorkout = workoutViewModel::startWorkout,
+                                    onStopWorkout = {
+                                        workoutViewModel.stopWorkout(planName = activePlanName) {
+                                            timerBridge.stopBackgroundTimer()
+                                        }
+                                    },
+                                    onExerciseNameChange = workoutViewModel::onExerciseNameChanged,
+                                    onWeightChange = workoutViewModel::updateWeightInput,
+                                    onRepsChange = workoutViewModel::updateRepsInput,
+                                    onSelectSetType = workoutViewModel::selectSetType,
+                                    onAddSet = {
+                                        workoutViewModel.addSet { durationMillis, label ->
+                                            timerBridge.startBackgroundTimer(durationMillis, label)
+                                        }
+                                    },
+                                    onSkipOrDismissRest = {
+                                        workoutViewModel.skipOrDismissRestTimer {
+                                            timerBridge.stopBackgroundTimer()
+                                        }
+                                    },
+                                    onSelectExerciseSuggestion = workoutViewModel::selectExerciseSuggestion,
+                                    onSelectMuscleGroup = workoutViewModel::selectMuscleGroup,
+                                    onStepWeight = workoutViewModel::stepWeight,
+                                    onStepReps = workoutViewModel::stepReps,
+                                    onDeleteSessionSet = workoutViewModel::deleteSessionSet,
+                                    onAdjustRestTimer = { deltaSeconds ->
+                                        workoutViewModel.adjustRestTimer(deltaSeconds) { delta ->
+                                            timerBridge.adjustBackgroundTimer(delta)
+                                        }
+                                    },
+                                    onRequestFinishWorkout = workoutViewModel::requestFinishWorkout,
+                                    onDismissFinishDialog = workoutViewModel::dismissFinishDialog,
+                                    onConfirmFinishWorkout = {
+                                        workoutViewModel.stopWorkout(planName = activePlanName) {
+                                            timerBridge.stopBackgroundTimer()
+                                        }
+                                    }
+                                )
+                            }
+
+                            composable(BottomNavTab.STATS.route) {
+                                val statsState by statsViewModel.uiState.collectAsState()
+                                StatsScreen(
+                                    uiState = statsState,
+                                    onSelectExercise = statsViewModel::selectExercise,
+                                    onToggleExerciseDropdown = statsViewModel::toggleExerciseDropdown,
+                                    onDismissExerciseDropdown = statsViewModel::dismissExerciseDropdown,
+                                    onSelectChartPoint = statsViewModel::selectChartPoint,
+                                    onSwitchHeatmapOrientation = statsViewModel::switchHeatmapOrientation,
+                                    onSelectMuscleRegion = statsViewModel::selectMuscleRegion,
+                                    onNavigateToLogWorkout = {
+                                        ensureNotificationPermission()
+                                        workoutViewModel.startWorkout()
+                                        navigateToTab(navController, BottomNavTab.WORKOUT)
+                                    }
+                                )
+                            }
+
+                            composable(BottomNavTab.SETTINGS.route) {
+                                SettingsScreen(
+                                    authSession = authUiState.authSession,
+                                    userProfile = authUiState.userProfile,
+                                    onUpdateProfile = authViewModel::onUpdateProfile,
+                                    onToggleGoogleLink = authViewModel::onToggleGoogleLink,
+                                    onToggleEmailLink = authViewModel::onToggleEmailLink,
+                                    onExportBackup = authViewModel::exportBackupJson,
+                                    onImportBackup = authViewModel::importBackupJson
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            NavHost(
-                navController = navController,
-                startDestination = BottomNavTab.HOME.route,
-                modifier = Modifier.weight(1f),
-                enterTransition = {
-                    fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
-                },
-                exitTransition = {
-                    fadeOut(tween(150))
-                },
-                popEnterTransition = {
-                    fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
-                },
-                popExitTransition = {
-                    fadeOut(tween(150))
-                }
-            ) {
-                composable(BottomNavTab.HOME.route) {
-                    HomeScreen(
-                        uiState = homeState,
-                        onSelectDay = homeViewModel::selectDay,
-                        onStartWorkout = {
-                            ensureNotificationPermission()
-                            workoutViewModel.startWorkout()
-                            navigateToTab(navController, BottomNavTab.WORKOUT)
-                        }
-                    )
-                }
-
-                composable(BottomNavTab.PLAN.route) {
-                    val planState by planViewModel.uiState.collectAsState()
-                    WorkoutPlanScreen(
-                        uiState = planState,
-                        onOpenWizard = planViewModel::startCreateOrEditPlan,
-                        onToggleDay = planViewModel::toggleDaySelection,
-                        onNextStep = planViewModel::goToInputPlanPage,
-                        onBackToSelectDays = planViewModel::goToEditDaysPage,
-                        onUpdateDraftName = planViewModel::updateDraftPlanName,
-                        onRequestCancel = planViewModel::requestCancel,
-                        onDismissDiscardDialog = planViewModel::dismissDiscardDialog,
-                        onConfirmDiscard = planViewModel::confirmDiscard,
-                        onSaveSchedule = planViewModel::saveWorkoutPlan
-                    )
-                }
-
-                composable(BottomNavTab.WORKOUT.route) {
-                    val workoutState by workoutViewModel.uiState.collectAsState()
-                    val activePlanName = if (homeState.selectedDayPlan.isRestDay) {
-                        workoutState.todayPlanName
-                    } else {
-                        homeState.selectedDayPlan.planName
+            if (isTutorialActive) {
+                TutorialOverlay(
+                    uiState = tutorialUiState,
+                    targetBounds = tutorialTargets,
+                    backdropLayer = if (blurSupported) contentLayer else null,
+                    onSkip = {
+                        tutorialController.onSkip(
+                            onPersistCompleted = authViewModel::onCompleteTutorial,
+                            onNavigateHome = { navigateToTab(navController, BottomNavTab.HOME) }
+                        )
+                    },
+                    onNext = {
+                        tutorialController.onNext()
+                    },
+                    onDone = {
+                        tutorialController.onDone(
+                            onPersistCompleted = authViewModel::onCompleteTutorial,
+                            onNavigateHome = { navigateToTab(navController, BottomNavTab.HOME) }
+                        )
                     }
-
-                    WorkoutScreen(
-                        uiState = workoutState,
-                        onStartWorkout = workoutViewModel::startWorkout,
-                        onStopWorkout = {
-                            workoutViewModel.stopWorkout(planName = activePlanName) {
-                                timerBridge.stopBackgroundTimer()
-                            }
-                        },
-                        onExerciseNameChange = workoutViewModel::onExerciseNameChanged,
-                        onWeightChange = workoutViewModel::updateWeightInput,
-                        onRepsChange = workoutViewModel::updateRepsInput,
-                        onSelectSetType = workoutViewModel::selectSetType,
-                        onAddSet = {
-                            workoutViewModel.addSet { durationMillis, label ->
-                                timerBridge.startBackgroundTimer(durationMillis, label)
-                            }
-                        },
-                        onSkipOrDismissRest = {
-                            workoutViewModel.skipOrDismissRestTimer {
-                                timerBridge.stopBackgroundTimer()
-                            }
-                        },
-                        onSelectExerciseSuggestion = workoutViewModel::selectExerciseSuggestion,
-                        onSelectMuscleGroup = workoutViewModel::selectMuscleGroup,
-                        onStepWeight = workoutViewModel::stepWeight,
-                        onStepReps = workoutViewModel::stepReps,
-                        onDeleteSessionSet = workoutViewModel::deleteSessionSet,
-                        onAdjustRestTimer = { deltaSeconds ->
-                            workoutViewModel.adjustRestTimer(deltaSeconds) { delta ->
-                                timerBridge.adjustBackgroundTimer(delta)
-                            }
-                        },
-                        onRequestFinishWorkout = workoutViewModel::requestFinishWorkout,
-                        onDismissFinishDialog = workoutViewModel::dismissFinishDialog,
-                        onConfirmFinishWorkout = {
-                            workoutViewModel.stopWorkout(planName = activePlanName) {
-                                timerBridge.stopBackgroundTimer()
-                            }
-                        }
-                    )
-                }
-
-                composable(BottomNavTab.STATS.route) {
-                    val statsState by statsViewModel.uiState.collectAsState()
-                    StatsScreen(
-                        uiState = statsState,
-                        onSelectExercise = statsViewModel::selectExercise,
-                        onToggleExerciseDropdown = statsViewModel::toggleExerciseDropdown,
-                        onDismissExerciseDropdown = statsViewModel::dismissExerciseDropdown,
-                        onSelectChartPoint = statsViewModel::selectChartPoint,
-                        onSwitchHeatmapOrientation = statsViewModel::switchHeatmapOrientation,
-                        onSelectMuscleRegion = statsViewModel::selectMuscleRegion,
-                        onNavigateToLogWorkout = {
-                            ensureNotificationPermission()
-                            workoutViewModel.startWorkout()
-                            navigateToTab(navController, BottomNavTab.WORKOUT)
-                        }
-                    )
-                }
-
-                composable(BottomNavTab.SETTINGS.route) {
-                    SettingsScreen(
-                        authSession = authUiState.authSession,
-                        userProfile = authUiState.userProfile,
-                        onUpdateProfile = authViewModel::onUpdateProfile,
-                        onToggleGoogleLink = authViewModel::onToggleGoogleLink,
-                        onToggleEmailLink = authViewModel::onToggleEmailLink,
-                        onExportBackup = authViewModel::exportBackupJson,
-                        onImportBackup = authViewModel::importBackupJson
-                    )
-                }
+                )
             }
         }
     }

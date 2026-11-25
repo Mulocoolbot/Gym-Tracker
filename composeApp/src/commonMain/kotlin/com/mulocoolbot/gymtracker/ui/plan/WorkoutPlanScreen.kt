@@ -66,6 +66,8 @@ import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
+import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 
 private val FULL_DAY_NAMES = listOf(
     "Sunday",
@@ -219,7 +221,8 @@ private fun EmptyWorkoutPlanContent(
                         onClick = onStartCreateOrEditPlan,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .tutorialTarget(TutorialTargetId.PLAN_CREATE_AREA),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = VoltAccent,
@@ -249,7 +252,10 @@ private fun SavedWorkoutPlanContent(
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        WorkoutPlanMainHeader(onStartCreateOrEditPlan = onStartCreateOrEditPlan)
+        WorkoutPlanMainHeader(
+            onStartCreateOrEditPlan = onStartCreateOrEditPlan,
+            registerCreateTarget = true
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -266,7 +272,8 @@ private fun SavedWorkoutPlanContent(
 
 @Composable
 private fun WorkoutPlanMainHeader(
-    onStartCreateOrEditPlan: () -> Unit
+    onStartCreateOrEditPlan: () -> Unit,
+    registerCreateTarget: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -280,12 +287,21 @@ private fun WorkoutPlanMainHeader(
             color = TextPrimary
         )
 
+        val addButtonModifier = Modifier
+            .size(44.dp)
+            .let { base ->
+                if (registerCreateTarget) {
+                    base.tutorialTarget(TutorialTargetId.PLAN_CREATE_AREA)
+                } else {
+                    base
+                }
+            }
+            .clip(RoundedCornerShape(16.dp))
+            .background(VoltAccent)
+            .clickable(onClick = onStartCreateOrEditPlan)
+
         Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(VoltAccent)
-                .clickable(onClick = onStartCreateOrEditPlan),
+            modifier = addButtonModifier,
             contentAlignment = Alignment.Center
         ) {
             Text(

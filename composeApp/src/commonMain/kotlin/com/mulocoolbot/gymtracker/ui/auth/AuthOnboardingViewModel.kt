@@ -452,6 +452,12 @@ class AuthOnboardingViewModel(
         }
     }
 
+    fun onCompleteTutorial() {
+        viewModelScope.launch {
+            repository.completeTutorial()
+        }
+    }
+
     suspend fun exportBackupJson(): String {
         return repository.exportBackupJson()
     }

@@ -99,6 +99,7 @@ class GymRepository(
 
         if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
             sessionPreferences.markProfileCompleted(true)
+            sessionPreferences.setShouldShowTutorial(false)
             if (existingProfile != null) {
                 syncAuthFlagsToProfile()
             } else {
@@ -132,6 +133,7 @@ class GymRepository(
 
         if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
             sessionPreferences.markProfileCompleted(true)
+            sessionPreferences.setShouldShowTutorial(false)
             if (existingProfile != null) {
                 syncAuthFlagsToProfile()
             } else {
@@ -151,6 +153,10 @@ class GymRepository(
             sessionPreferences.markProfileCompleted(false)
             syncAuthFlagsToProfile()
         }
+    }
+
+    suspend fun completeTutorial() {
+        sessionPreferences.markTutorialCompleted()
     }
 
     suspend fun unlinkGoogle() {
@@ -329,6 +335,7 @@ class GymRepository(
         val success = GymBackupManager.importFromJson(dao, jsonString)
         if (success && dao.getUserProfile() != null) {
             sessionPreferences.markProfileCompleted(true)
+            sessionPreferences.setShouldShowTutorial(false)
         }
         return success
     }

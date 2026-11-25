@@ -66,6 +66,8 @@ import com.mulocoolbot.gymtracker.ui.theme.AppBackground
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.SuccessGreen
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
+import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import kotlin.math.ceil
 import kotlin.math.hypot
@@ -142,39 +144,46 @@ private fun EmptyStatisticsContent(
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(StatsInnerBg)
-                            .border(1.dp, StatsBorder, RoundedCornerShape(20.dp)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = StatsBarIcon,
-                            contentDescription = "No Statistics Yet",
-                            tint = StatsVolt,
-                            modifier = Modifier.size(28.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(StatsInnerBg)
+                                .border(1.dp, StatsBorder, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = StatsBarIcon,
+                                contentDescription = "No Statistics Yet",
+                                tint = StatsVolt,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text(
+                            text = "No Statistics Yet",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = StatsWhite
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Complete your first workout session to unlock e1RM strength charts and your 2D muscle heatmap.",
+                            fontSize = 13.sp,
+                            color = StatsMuted,
+                            textAlign = TextAlign.Center
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Text(
-                        text = "No Statistics Yet",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = StatsWhite
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Complete your first workout session to unlock e1RM strength charts and your 2D muscle heatmap.",
-                        fontSize = 13.sp,
-                        color = StatsMuted,
-                        textAlign = TextAlign.Center
-                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -276,150 +285,156 @@ private fun StrengthProgressBentoCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "STRENGTH PROGRESS (e1RM)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = StatsMuted
-                )
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(deltaBadgeColor.copy(alpha = 0.16f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = deltaText,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = deltaBadgeColor
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onSizeChanged { dropdownAnchorWidthPx = it.width }
+                    .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA)
             ) {
-                val dropdownBorderColor = if (uiState.isExerciseDropdownOpen) StatsVolt else StatsBorder
-
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(StatsInnerBg)
-                        .border(1.dp, dropdownBorderColor, RoundedCornerShape(16.dp))
-                        .clickable(onClick = onToggleExerciseDropdown)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = "STRENGTH PROGRESS (e1RM)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = StatsMuted
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(deltaBadgeColor.copy(alpha = 0.16f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(StatsVolt)
-                        )
-
                         Text(
-                            text = activeOption?.exerciseName ?: uiState.selectedExerciseName.ifEmpty { "Select Exercise" },
-                            fontSize = 15.sp,
+                            text = deltaText,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = StatsWhite
+                            color = deltaBadgeColor
                         )
-
-                        if (activeOption != null) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(StatsCardBg)
-                                    .border(1.dp, StatsBorder, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = activeOption.muscleGroup,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = StatsVolt
-                                )
-                            }
-                        }
                     }
-
-                    ChevronIndicator(isExpanded = uiState.isExerciseDropdownOpen)
                 }
 
-                val menuWidth = with(density) { dropdownAnchorWidthPx.toDp() }
-                DropdownMenu(
-                    expanded = uiState.isExerciseDropdownOpen,
-                    onDismissRequest = onDismissExerciseDropdown,
-                    modifier = Modifier
-                        .let { if (dropdownAnchorWidthPx > 0) it.width(menuWidth) else it }
-                        .background(StatsInnerBg)
-                        .border(1.dp, StatsVolt, RoundedCornerShape(16.dp))
-                ) {
-                    uiState.exerciseOptions.forEach { option ->
-                        val isSelected = option.exerciseName == uiState.selectedExerciseName
-                        DropdownMenuItem(
-                            onClick = { onSelectExercise(option.exerciseName) },
-                            text = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = option.exerciseName,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) StatsVolt else StatsWhite
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${option.muscleGroup} · Best ${formatCompactNumber(option.bestE1rm)} kg",
-                                            fontSize = 11.sp,
-                                            color = StatsMuted
-                                        )
-                                    }
+                Spacer(modifier = Modifier.height(14.dp))
 
-                                    if (isSelected) {
-                                        Canvas(modifier = Modifier.size(14.dp)) {
-                                            val checkPath = Path().apply {
-                                                moveTo(size.width * 0.15f, size.height * 0.52f)
-                                                lineTo(size.width * 0.42f, size.height * 0.78f)
-                                                lineTo(size.width * 0.85f, size.height * 0.24f)
-                                            }
-                                            drawPath(
-                                                path = checkPath,
-                                                color = StatsVolt,
-                                                style = Stroke(
-                                                    width = 2.dp.toPx(),
-                                                    cap = StrokeCap.Round,
-                                                    join = StrokeJoin.Round
-                                                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { dropdownAnchorWidthPx = it.width }
+                ) {
+                    val dropdownBorderColor = if (uiState.isExerciseDropdownOpen) StatsVolt else StatsBorder
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(StatsInnerBg)
+                            .border(1.dp, dropdownBorderColor, RoundedCornerShape(16.dp))
+                            .clickable(onClick = onToggleExerciseDropdown)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(StatsVolt)
+                            )
+
+                            Text(
+                                text = activeOption?.exerciseName ?: uiState.selectedExerciseName.ifEmpty { "Select Exercise" },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = StatsWhite
+                            )
+
+                            if (activeOption != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(StatsCardBg)
+                                        .border(1.dp, StatsBorder, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = activeOption.muscleGroup,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StatsVolt
+                                    )
+                                }
+                            }
+                        }
+
+                        ChevronIndicator(isExpanded = uiState.isExerciseDropdownOpen)
+                    }
+
+                    val menuWidth = with(density) { dropdownAnchorWidthPx.toDp() }
+                    DropdownMenu(
+                        expanded = uiState.isExerciseDropdownOpen,
+                        onDismissRequest = onDismissExerciseDropdown,
+                        modifier = Modifier
+                            .let { if (dropdownAnchorWidthPx > 0) it.width(menuWidth) else it }
+                            .background(StatsInnerBg)
+                            .border(1.dp, StatsVolt, RoundedCornerShape(16.dp))
+                    ) {
+                        uiState.exerciseOptions.forEach { option ->
+                            val isSelected = option.exerciseName == uiState.selectedExerciseName
+                            DropdownMenuItem(
+                                onClick = { onSelectExercise(option.exerciseName) },
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = option.exerciseName,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) StatsVolt else StatsWhite
                                             )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${option.muscleGroup} · Best ${formatCompactNumber(option.bestE1rm)} kg",
+                                                fontSize = 11.sp,
+                                                color = StatsMuted
+                                            )
+                                        }
+
+                                        if (isSelected) {
+                                            Canvas(modifier = Modifier.size(14.dp)) {
+                                                val checkPath = Path().apply {
+                                                    moveTo(size.width * 0.15f, size.height * 0.52f)
+                                                    lineTo(size.width * 0.42f, size.height * 0.78f)
+                                                    lineTo(size.width * 0.85f, size.height * 0.24f)
+                                                }
+                                                drawPath(
+                                                    path = checkPath,
+                                                    color = StatsVolt,
+                                                    style = Stroke(
+                                                        width = 2.dp.toPx(),
+                                                        cap = StrokeCap.Round,
+                                                        join = StrokeJoin.Round
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

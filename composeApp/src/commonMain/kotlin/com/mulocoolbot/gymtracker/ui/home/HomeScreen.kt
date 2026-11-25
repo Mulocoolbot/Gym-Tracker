@@ -45,6 +45,8 @@ import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
+import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 
 @Composable
 fun HomeScreen(
@@ -82,7 +84,9 @@ fun HomeScreen(
         ) {
             StreakBentoCard(
                 currentStreak = uiState.currentStreak,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .tutorialTarget(TutorialTargetId.HOME_STREAK)
             )
             CaloriesBentoCard(
                 todayCalories = uiState.todayCalories,
@@ -100,7 +104,8 @@ fun HomeScreen(
             } else {
                 uiState.selectedDayPlan.planName
             },
-            onStartWorkout = onStartWorkout
+            onStartWorkout = onStartWorkout,
+            modifier = Modifier.tutorialTarget(TutorialTargetId.HOME_HERO_PLAN)
         )
     }
 }
@@ -344,12 +349,13 @@ private fun CaloriesBentoCard(
 private fun HeroWorkoutPlanCard(
     isRestDay: Boolean,
     planName: String,
-    onStartWorkout: () -> Unit
+    onStartWorkout: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val cardShape = RoundedCornerShape(28.dp)
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(cardShape)
             .drawWithContent {

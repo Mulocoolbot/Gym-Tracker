@@ -80,6 +80,8 @@ import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
+import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import com.mulocoolbot.gymtracker.util.parseDecimalInput
 
@@ -345,7 +347,8 @@ private fun EmptyWorkoutTodayCard(
                 onClick = onStartWorkout,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
+                    .height(54.dp)
+                    .tutorialTarget(TutorialTargetId.WORKOUT_START_AREA),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = WorkoutVolt,
@@ -427,6 +430,7 @@ private fun TodayWorkoutPlanHeroCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(58.dp)
+                    .tutorialTarget(TutorialTargetId.WORKOUT_START_AREA)
                     .clip(RoundedCornerShape(20.dp))
                     .background(WorkoutVolt)
                     .clickable(onClick = onStartWorkout)
