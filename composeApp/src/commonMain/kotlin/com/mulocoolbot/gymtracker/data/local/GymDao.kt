@@ -1,0 +1,175 @@
+package com.mulocoolbot.gymtracker.data.local
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface GymDao {
+
+    @Query("SELECT * FROM user_profile LIMIT 1")
+    fun observeUserProfile(): Flow<UserProfileEntity?>
+
+    @Query("SELECT * FROM user_profile LIMIT 1")
+    suspend fun getUserProfile(): UserProfileEntity?
+
+    @Upsert
+    suspend fun upsertUserProfile(profile: UserProfileEntity)
+
+    @Query("DELETE FROM user_profile")
+    suspend fun clearUserProfile()
+
+    @Transaction
+    suspend fun replaceSingleUserProfile(profile: UserProfileEntity) {
+        val existing = getUserProfile()
+        if (existing != null && existing.uid != profile.uid) {
+            clearUserProfile()
+        }
+        upsertUserProfile(profile)
+    }
+
+    @Transaction
+    suspend fun recordWorkoutSessionTransaction(
+        session: WorkoutSessionEntity,
+        sets: List<WorkoutSetEntity>,
+        historyItems: List<ExerciseHistoryEntity>,
+        updatedProfile: UserProfileEntity?
+    ) {
+        val sessionId = insertSession(session)
+        if (sets.isNotEmpty()) {
+            insertSets(sets.map { it.copy(setId = 0L, sessionId = sessionId) })
+        }
+        if (historyItems.isNotEmpty()) {
+            upsertExerciseHistories(historyItems)
+        }
+        if (updatedProfile != null) {
+            replaceSingleUserProfile(updatedProfile)
+        }
+    }
+
+    @Query("DELETE FROM workout_plan")
+    suspend fun clearWorkoutPlans()
+
+    @Query("DELETE FROM exercise_history")
+    suspend fun clearExerciseHistory()
+
+    @Query("DELETE FROM workout_session")
+    suspend fun clearWorkoutSessions()
+
+    @Query("DELETE FROM workout_set")
+    suspend fun clearWorkoutSets()
+
+    @Transaction
+    suspend fun replaceAllBackupData(
+        profile: UserProfileEntity?,
+        plans: List<WorkoutPlanEntity>,
+        history: List<ExerciseHistoryEntity>,
+        sessions: List<WorkoutSessionEntity>,
+        sets: List<WorkoutSetEntity>
+    ) {
+        clearWorkoutSets()
+        clearWorkoutSessions()
+        clearExerciseHistory()
+        clearWorkoutPlans()
+        clearUserProfile()
+        profile?.let { upsertUserProfile(it) }
+        if (plans.isNotEmpty()) upsertWorkoutPlans(plans)
+        if (history.isNotEmpty()) upsertExerciseHistories(history)
+        if (sessions.isNotEmpty()) insertSessions(sessions)
+        if (sets.isNotEmpty()) insertSets(sets)
+    }
+
+    @Query("SELECT * FROM workout_plan ORDER BY dayOfWeek ASC")
+    fun observeWorkoutPlans(): Flow<List<WorkoutPlanEntity>>
+
+    @Query("SELECT * FROM workout_plan ORDER BY dayOfWeek ASC")
+    suspend fun getWorkoutPlans(): List<WorkoutPlanEntity>
+
+    @Upsert
+    suspend fun upsertWorkoutPlans(plans: List<WorkoutPlanEntity>)
+
+    @Upsert
+    suspend fun upsertWorkoutPlan(plan: WorkoutPlanEntity)
+
+    @Query("SELECT * FROM exercise_history ORDER BY lastUsedMillis DESC")
+    fun observeExerciseHistory(): Flow<List<ExerciseHistoryEntity>>
+
+    @Query("SELECT * FROM exercise_history ORDER BY lastUsedMillis DESC")
+    suspend fun getExerciseHistory(): List<ExerciseHistoryEntity>
+
+    @Upsert
+    suspend fun upsertExerciseHistory(exercise: ExerciseHistoryEntity)
+
+    @Upsert
+    suspend fun upsertExerciseHistories(exercises: List<ExerciseHistoryEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: WorkoutSessionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessions(sessions: List<WorkoutSessionEntity>)
+
+    @Update
+    suspend fun updateSession(session: WorkoutSessionEntity)
+
+    @Delete
+    suspend fun deleteSession(session: WorkoutSessionEntity)
+
+    @Query("SELECT * FROM workout_session WHERE sessionId = :sessionId LIMIT 1")
+    suspend fun getSessionById(sessionId: Long): WorkoutSessionEntity?
+
+    @Query("SELECT * FROM workout_session ORDER BY sessionId ASC")
+    suspend fun getAllSessions(): List<WorkoutSessionEntity>
+
+    @Query("SELECT * FROM workout_session WHERE dateEpochDay = :dateEpochDay ORDER BY startTimeMillis DESC")
+    fun observeSessionsByDate(dateEpochDay: Long): Flow<List<WorkoutSessionEntity>>
+
+    @Query("SELECT * FROM workout_session ORDER BY startTimeMillis DESC")
+    fun observeAllSessions(): Flow<List<WorkoutSessionEntity>>
+
+    @Query("SELECT COALESCE(SUM(caloriesBurned), 0) FROM workout_session WHERE dateEpochDay = :dateEpochDay")
+    fun observeCaloriesByDate(dateEpochDay: Long): Flow<Int>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSet(workoutSet: WorkoutSetEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSets(sets: List<WorkoutSetEntity>)
+
+    @Delete
+    suspend fun deleteSet(workoutSet: WorkoutSetEntity)
+
+    @Query("SELECT * FROM workout_set WHERE sessionId = :sessionId ORDER BY setOrder ASC, timestampMillis ASC")
+    fun observeSetsForSession(sessionId: Long): Flow<List<WorkoutSetEntity>>
+
+    @Query("SELECT * FROM workout_set WHERE sessionId = :sessionId ORDER BY setOrder ASC, timestampMillis ASC")
+    suspend fun getSetsForSession(sessionId: Long): List<WorkoutSetEntity>
+
+    @Query(
+        """
+        SELECT ws.* FROM workout_set ws
+        INNER JOIN workout_session s ON ws.sessionId = s.sessionId
+        WHERE s.dateEpochDay = :dateEpochDay
+        ORDER BY ws.timestampMillis ASC
+        """
+    )
+    fun observeSetsByDate(dateEpochDay: Long): Flow<List<WorkoutSetEntity>>
+
+    @Query("SELECT * FROM workout_set WHERE exerciseName = :exerciseName ORDER BY timestampMillis ASC")
+    fun observeSetsForExercise(exerciseName: String): Flow<List<WorkoutSetEntity>>
+
+    @Query("SELECT DISTINCT exerciseName FROM workout_set ORDER BY exerciseName ASC")
+    fun observeLoggedExerciseNames(): Flow<List<String>>
+
+    @Query("SELECT * FROM workout_set ORDER BY timestampMillis ASC")
+    fun observeAllSets(): Flow<List<WorkoutSetEntity>>
+
+    @Query("SELECT * FROM workout_set ORDER BY setId ASC")
+    suspend fun getAllSets(): List<WorkoutSetEntity>
+}

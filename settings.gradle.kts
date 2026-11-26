@@ -15,5 +15,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MFit"
-include(":app")
+include(":app", ":composeApp")
 

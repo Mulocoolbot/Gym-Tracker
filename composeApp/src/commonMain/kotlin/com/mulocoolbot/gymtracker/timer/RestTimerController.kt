@@ -1,0 +1,108 @@
+package com.mulocoolbot.gymtracker.timer
+
+import com.mulocoolbot.gymtracker.util.currentEpochMillis
+import com.mulocoolbot.gymtracker.util.formatTwoDigits
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+class RestTimerController {
+
+    private val _state = MutableStateFlow(RestTimerState())
+    val state: StateFlow<RestTimerState> = _state.asStateFlow()
+
+    fun startTimer(
+        durationMillis: Long,
+        label: String = "Rest Timer",
+        currentMillis: Long = currentEpochMillis()
+    ) {
+        val totalSeconds = (durationMillis / 1000L).toInt().coerceAtLeast(0)
+        _state.update {
+            RestTimerState(
+                isRunning = true,
+                totalSeconds = totalSeconds,
+                remainingSeconds = totalSeconds,
+                endTimeMillis = currentMillis + durationMillis,
+                alarmRinging = false,
+                label = label
+            )
+        }
+    }
+
+    fun adjustTimer(
+        deltaSeconds: Int,
+        currentMillis: Long = currentEpochMillis()
+    ) {
+        _state.update { current ->
+            if (!current.isRunning) return@update current
+
+            val updatedEndTimeMillis = (current.endTimeMillis + deltaSeconds * 1000L)
+                .coerceAtLeast(currentMillis)
+            val remainingSeconds = ((updatedEndTimeMillis - currentMillis + 999L) / 1000L)
+                .toInt()
+                .coerceAtLeast(0)
+            val updatedTotalSeconds = maxOf(current.totalSeconds, remainingSeconds)
+
+            if (remainingSeconds == 0) {
+                current.copy(
+                    isRunning = false,
+                    totalSeconds = updatedTotalSeconds,
+                    remainingSeconds = 0,
+                    endTimeMillis = updatedEndTimeMillis,
+                    alarmRinging = true
+                )
+            } else {
+                current.copy(
+                    totalSeconds = updatedTotalSeconds,
+                    remainingSeconds = remainingSeconds,
+                    endTimeMillis = updatedEndTimeMillis
+                )
+            }
+        }
+    }
+
+    fun tick(currentMillis: Long = currentEpochMillis()) {
+        _state.update { current ->
+            if (!current.isRunning) return@update current
+
+            val remainingSeconds = ((current.endTimeMillis - currentMillis + 999L) / 1000L)
+                .toInt()
+                .coerceAtLeast(0)
+
+            if (remainingSeconds == 0) {
+                current.copy(
+                    isRunning = false,
+                    remainingSeconds = 0,
+                    alarmRinging = true
+                )
+            } else {
+                current.copy(remainingSeconds = remainingSeconds)
+            }
+        }
+    }
+
+    fun dismissOrSkip() {
+        _state.update {
+            RestTimerState(
+                isRunning = false,
+                totalSeconds = 0,
+                remainingSeconds = 0,
+                endTimeMillis = 0L,
+                alarmRinging = false,
+                label = "Rest Timer"
+            )
+        }
+    }
+
+    fun formatMMSS(seconds: Int): String = Companion.formatMMSS(seconds)
+
+    companion object {
+        val instance: RestTimerController by lazy { RestTimerController() }
+
+        fun formatMMSS(seconds: Int): String {
+            val safeSeconds = seconds.coerceAtLeast(0)
+            return "${formatTwoDigits(safeSeconds / 60)}:${formatTwoDigits(safeSeconds % 60)}"
+        }
+    }
+}

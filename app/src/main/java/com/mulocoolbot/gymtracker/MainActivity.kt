@@ -7,36 +7,25 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.mulocoolbot.gymtracker.data.auth.SessionPreferences
-import com.mulocoolbot.gymtracker.data.local.GymDatabase
-import com.mulocoolbot.gymtracker.data.repository.GymRepository
-import com.mulocoolbot.gymtracker.timer.RestTimerController
-import com.mulocoolbot.gymtracker.ui.navigation.MainScaffold
-import com.mulocoolbot.gymtracker.ui.theme.GymTrackerTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.mulocoolbot.gymtracker.data.auth.EmailOtpSender
+import com.mulocoolbot.gymtracker.platform.AndroidPlatformBindings
+import com.mulocoolbot.gymtracker.platform.AndroidPlatformContext
+import com.mulocoolbot.gymtracker.timer.RestTimerService
+import com.mulocoolbot.gymtracker.ui.auth.rememberGoogleAuthLauncher
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerPlatformBindings()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#101217")
+        window.navigationBarColor = Color.parseColor("#0B0C0E")
         applyFullScreenMode()
 
-        val database = GymDatabase.getInstance(applicationContext)
-        val sessionPreferences = SessionPreferences(applicationContext)
-        val repository = GymRepository(
-            dao = database.gymDao(),
-            sessionPreferences = sessionPreferences
-        )
-
         setContent {
-            GymTrackerTheme {
-                MainScaffold(
-                    repository = repository,
-                    timerController = RestTimerController.instance
-                )
-            }
+            GymTrackerApp()
         }
     }
 
@@ -44,6 +33,41 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             applyFullScreenMode()
+        }
+    }
+
+    private fun registerPlatformBindings() {
+        AndroidPlatformContext.init(applicationContext)
+        AndroidPlatformBindings.startRestTimerService = { ctx, durationMillis, label ->
+            RestTimerService.startRestTimer(ctx, durationMillis, label, appliedInMemory = true)
+        }
+        AndroidPlatformBindings.adjustRestTimerService = { ctx, deltaSeconds ->
+            RestTimerService.adjustRestTimer(ctx, deltaSeconds, appliedInMemory = true)
+        }
+        AndroidPlatformBindings.stopRestTimerService = { ctx ->
+            RestTimerService.stopRestTimer(ctx)
+        }
+        AndroidPlatformBindings.syncLiveIslandState = { ctx, state ->
+            RestTimerService.syncLiveIslandState(ctx, state)
+        }
+        AndroidPlatformBindings.deliverEmailOtp = { ctx, email, otpCode ->
+            EmailOtpSender.sendOtpEmail(ctx, email, otpCode)
+        }
+        AndroidPlatformBindings.remoteAuthSync = { email, password, isRegister ->
+            runCatching {
+                val auth = FirebaseAuth.getInstance()
+                if (isRegister) {
+                    auth.createUserWithEmailAndPassword(email, password)
+                } else {
+                    auth.signInWithEmailAndPassword(email, password)
+                }
+            }
+        }
+        AndroidPlatformBindings.googleSignInActionFactory = { onSuccess, onErrorOrCancel ->
+            rememberGoogleAuthLauncher(
+                onSuccess = onSuccess,
+                onErrorOrCancel = onErrorOrCancel
+            )
         }
     }
 
