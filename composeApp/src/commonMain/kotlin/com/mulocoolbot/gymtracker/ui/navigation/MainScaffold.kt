@@ -57,6 +57,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.platform.LiveIslandActionHandler
+import com.mulocoolbot.gymtracker.platform.PlatformBackHandler
 import com.mulocoolbot.gymtracker.platform.PlatformPermissionsRequester
 import com.mulocoolbot.gymtracker.platform.createLiveIslandController
 import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
@@ -85,8 +86,8 @@ import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
 import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.ui.tutorial.LocalTutorialTargets
-import com.mulocoolbot.gymtracker.ui.tutorial.TutorialController
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialOverlay
+import com.mulocoolbot.gymtracker.ui.tutorial.rememberTutorialController
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialPreviewData
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutScreen
@@ -251,14 +252,19 @@ private fun AuthenticatedMainContent(
     }
 
     val tutorialTargets = remember { mutableStateMapOf<TutorialTargetId, Rect>() }
-    val tutorialController = remember { TutorialController() }
+    val tutorialController = rememberTutorialController()
     val tutorialUiState = tutorialController.resolveUiState(authUiState.authSession)
     val isTutorialActive = tutorialUiState.isActive
     val currentTutorialStep = tutorialUiState.currentStep
     val blurSupported = remember { supportsTutorialBlur() }
     val contentLayer = rememberGraphicsLayer()
 
-    LaunchedEffect(isTutorialActive, tutorialUiState.stepIndex) {
+    LaunchedEffect(currentRoute) {
+        homeViewModel.refreshDateIfNeeded()
+        workoutViewModel.refreshCurrentDayIfNeeded()
+    }
+
+    LaunchedEffect(isTutorialActive, tutorialUiState.stepIndex, currentRoute) {
         if (isTutorialActive && currentRoute != currentTutorialStep.tab.route) {
             navigateToTab(navController, currentTutorialStep.tab)
         }
@@ -267,6 +273,13 @@ private fun AuthenticatedMainContent(
     LaunchedEffect(isTutorialActive) {
         if (!isTutorialActive) {
             tutorialTargets.clear()
+        }
+    }
+
+    PlatformBackHandler(enabled = isTutorialActive) {
+        if (tutorialController.stepIndex > 0) {
+            val prevTab = tutorialController.onPrevious()
+            navigateToTab(navController, prevTab)
         }
     }
 
@@ -329,8 +342,8 @@ private fun AuthenticatedMainContent(
                                 .weight(1f)
                                 .iosEdgeSwipeBack(
                                     enabled = !isTutorialActive &&
-                                        currentRoute != BottomNavTab.HOME.route &&
-                                        navController.previousBackStackEntry != null,
+                                            currentRoute != BottomNavTab.HOME.route &&
+                                            navController.previousBackStackEntry != null,
                                     onBack = { navController.popBackStack() }
                                 ),
                             enterTransition = {

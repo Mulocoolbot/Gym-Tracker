@@ -93,32 +93,7 @@ class GymRepository(
     ) {
         val wasRegistered = sessionPreferences.isEmailRegistered(email)
         sessionPreferences.signInWithGoogle(email, entryMode)
-        val existingProfile = dao.getUserProfile()
-        val session = sessionPreferences.authSessionFlow.first()
-        val hasMatchingProfile = existingProfile != null && existingProfile.uid == session.uid
-
-        if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
-            sessionPreferences.markProfileCompleted(true)
-            sessionPreferences.setShouldShowTutorial(false)
-            if (existingProfile != null) {
-                syncAuthFlagsToProfile()
-            } else {
-                dao.upsertUserProfile(
-                    UserProfileEntity(
-                        uid = session.uid,
-                        name = email.trim().substringBefore("@").ifBlank { "Athlete" },
-                        birthDateMillis = 946684800000L,
-                        heightCm = 175.0,
-                        weightKg = 70.0,
-                        isGoogleLinked = session.isGoogleLinked,
-                        isEmailLinked = session.isEmailLinked
-                    )
-                )
-            }
-        } else {
-            sessionPreferences.markProfileCompleted(false)
-            syncAuthFlagsToProfile()
-        }
+        finalizeProviderSignIn(email = email, entryMode = entryMode, wasRegistered = wasRegistered)
     }
 
     suspend fun signInWithEmail(
@@ -127,17 +102,25 @@ class GymRepository(
     ) {
         val wasRegistered = sessionPreferences.isEmailRegistered(email)
         sessionPreferences.signInWithEmail(email, entryMode)
+        finalizeProviderSignIn(email = email, entryMode = entryMode, wasRegistered = wasRegistered)
+    }
+
+    private suspend fun finalizeProviderSignIn(
+        email: String,
+        entryMode: AuthEntryMode,
+        wasRegistered: Boolean
+    ) {
         val existingProfile = dao.getUserProfile()
         val session = sessionPreferences.authSessionFlow.first()
         val hasMatchingProfile = existingProfile != null && existingProfile.uid == session.uid
 
         if (hasMatchingProfile || (entryMode == AuthEntryMode.LOG_IN && (wasRegistered || existingProfile != null))) {
             sessionPreferences.markProfileCompleted(true)
-            sessionPreferences.setShouldShowTutorial(false)
+            sessionPreferences.markTutorialCompleted()
             if (existingProfile != null) {
                 syncAuthFlagsToProfile()
             } else {
-                dao.upsertUserProfile(
+                dao.replaceSingleUserProfile(
                     UserProfileEntity(
                         uid = session.uid,
                         name = email.trim().substringBefore("@").ifBlank { "Athlete" },
@@ -151,6 +134,9 @@ class GymRepository(
             }
         } else {
             sessionPreferences.markProfileCompleted(false)
+            if (entryMode == AuthEntryMode.LOG_IN) {
+                sessionPreferences.markTutorialCompleted()
+            }
             syncAuthFlagsToProfile()
         }
     }
@@ -208,7 +194,7 @@ class GymRepository(
             isEmailLinked = session.isEmailLinked
         )
 
-        dao.upsertUserProfile(updatedProfile)
+        dao.replaceSingleUserProfile(updatedProfile)
 
         val currentPlans = dao.getWorkoutPlans()
         if (currentPlans.isEmpty() || currentPlans.none { !it.isRestDay }) {
@@ -224,7 +210,7 @@ class GymRepository(
         heightCm: Double
     ) {
         val existingProfile = dao.getUserProfile() ?: return
-        dao.upsertUserProfile(
+        dao.replaceSingleUserProfile(
             existingProfile.copy(
                 name = name.trim(),
                 weightKg = weightKg,
@@ -241,7 +227,7 @@ class GymRepository(
             weeklyPlan = currentPlans,
             todayEpochDay = todayEpochDay
         )
-        dao.upsertUserProfile(evaluatedProfile)
+        dao.replaceSingleUserProfile(evaluatedProfile)
     }
 
     suspend fun saveWeeklyWorkoutPlan(selectedDaysWithNames: Map<Int, String>) {
@@ -272,59 +258,78 @@ class GymRepository(
         todayEpochDay: Long,
         muscleGroupsByExercise: Map<String, String> = emptyMap()
     ) {
+        val preparedSets = sets.mapIndexedNotNull { index, set ->
+            val normalizedName = WorkoutCalculator.normalizeExerciseName(set.exerciseName)
+            if (normalizedName.isEmpty() ||
+                !set.weightKg.isFinite() ||
+                set.weightKg <= 0.0 ||
+                set.weightKg > 10_000.0 ||
+                set.reps !in 1..10_000
+            ) {
+                null
+            } else {
+                set.copy(
+                    setId = 0L,
+                    sessionId = 0L,
+                    exerciseName = normalizedName,
+                    setOrder = if (set.setOrder > 0) set.setOrder else index + 1,
+                    e1rm = WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
+                )
+            }
+        }
+        if (sets.isNotEmpty() && preparedSets.isEmpty()) return
+
         val profile = dao.getUserProfile()
+        val safeEndMillis = endMillis.coerceAtLeast(startMillis)
         val calories = WorkoutCalculator.calculateCalories(
             weightKg = profile?.weightKg ?: 70.0,
             startMillis = startMillis,
-            endMillis = endMillis
+            endMillis = safeEndMillis
         )
 
         val cleanPlanName = planName.trim().ifEmpty { "Workout" }
-        val sessionId = dao.insertSession(
-            WorkoutSessionEntity(
-                dateEpochDay = todayEpochDay,
-                planName = cleanPlanName,
-                startTimeMillis = startMillis,
-                endTimeMillis = endMillis,
-                caloriesBurned = calories
-            )
+        val session = WorkoutSessionEntity(
+            dateEpochDay = todayEpochDay,
+            planName = cleanPlanName,
+            startTimeMillis = startMillis,
+            endTimeMillis = safeEndMillis,
+            caloriesBurned = calories
         )
 
-        val preparedSets = sets.mapIndexed { index, set ->
-            val normalizedName = WorkoutCalculator.normalizeExerciseName(set.exerciseName)
-            val calculatedE1rm = WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
-            set.copy(
-                setId = 0,
-                sessionId = sessionId,
-                exerciseName = normalizedName,
-                setOrder = if (set.setOrder > 0) set.setOrder else index + 1,
-                e1rm = calculatedE1rm
-            )
+        val normalizedMuscleMap = muscleGroupsByExercise.entries.associate { (key, value) ->
+            WorkoutCalculator.normalizeExerciseName(key) to value
         }
 
-        if (preparedSets.isNotEmpty()) {
-            dao.insertSets(preparedSets)
-            val historyItems = preparedSets
-                .groupBy { it.exerciseName }
-                .map { (exerciseName, exerciseSets) ->
-                    ExerciseHistoryEntity(
-                        normalizedName = exerciseName,
-                        muscleGroup = muscleGroupsByExercise[exerciseName]
-                            ?.takeIf { it.isNotBlank() }
-                            ?: cleanPlanName,
-                        lastUsedMillis = exerciseSets.maxOf { it.timestampMillis }
-                    )
-                }
-            dao.upsertExerciseHistories(historyItems)
-        }
+        val historyItems = preparedSets
+            .groupBy { it.exerciseName }
+            .map { (exerciseName, exerciseSets) ->
+                ExerciseHistoryEntity(
+                    normalizedName = exerciseName,
+                    muscleGroup = normalizedMuscleMap[exerciseName]
+                        ?.takeIf { it.isNotBlank() }
+                        ?: cleanPlanName,
+                    lastUsedMillis = exerciseSets.maxOf { it.timestampMillis }
+                )
+            }
 
-        if (profile != null) {
-            val updatedProfile = StreakEvaluator.onWorkoutCompleted(
-                profile = profile,
+        val updatedProfile = profile?.let { currentProfile ->
+            val evaluatedProfile = StreakEvaluator.evaluateOnAppLaunch(
+                profile = currentProfile,
+                weeklyPlan = dao.getWorkoutPlans(),
                 todayEpochDay = todayEpochDay
             )
-            dao.upsertUserProfile(updatedProfile)
+            StreakEvaluator.onWorkoutCompleted(
+                profile = evaluatedProfile,
+                todayEpochDay = todayEpochDay
+            )
         }
+
+        dao.recordWorkoutSessionTransaction(
+            session = session,
+            sets = preparedSets,
+            historyItems = historyItems,
+            updatedProfile = updatedProfile
+        )
     }
 
     suspend fun exportBackupJson(): String {
@@ -333,17 +338,21 @@ class GymRepository(
 
     suspend fun importBackupJson(jsonString: String): Boolean {
         val success = GymBackupManager.importFromJson(dao, jsonString)
-        if (success && dao.getUserProfile() != null) {
+        if (!success) return false
+        val hasProfile = dao.getUserProfile() != null
+        if (hasProfile) {
             sessionPreferences.markProfileCompleted(true)
-            sessionPreferences.setShouldShowTutorial(false)
         }
-        return success
+        if (hasProfile || dao.getAllSessions().isNotEmpty() || dao.getWorkoutPlans().any { !it.isRestDay }) {
+            sessionPreferences.markTutorialCompleted()
+        }
+        return true
     }
 
     private suspend fun syncAuthFlagsToProfile() {
         val profile = dao.getUserProfile() ?: return
         val session = sessionPreferences.authSessionFlow.first()
-        dao.upsertUserProfile(
+        dao.replaceSingleUserProfile(
             profile.copy(
                 uid = session.uid.ifBlank { profile.uid },
                 isGoogleLinked = session.isGoogleLinked,

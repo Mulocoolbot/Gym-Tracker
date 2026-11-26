@@ -1,7 +1,7 @@
 package com.mulocoolbot.gymtracker.util
 
-import kotlin.math.round
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -12,9 +12,9 @@ object WorkoutCalculator {
 
     fun calculateE1RM(weightKg: Double, reps: Int): Double {
         if (!weightKg.isFinite() || weightKg <= 0.0 || reps <= 0) return 0.0
-        if (reps == 1) return weightKg
-        val raw = weightKg * (1.0 + reps / 30.0)
-        return round(raw * 10.0) / 10.0
+        val raw = if (reps == 1) weightKg else weightKg * (1.0 + reps.toDouble() / 30.0)
+        if (!raw.isFinite() || raw > 1_000_000_000.0) return 0.0
+        return (raw * 10.0).roundToLong() / 10.0
     }
 
     fun calculateCalories(
@@ -26,7 +26,8 @@ object WorkoutCalculator {
         if (!weightKg.isFinite() || !met.isFinite() || weightKg <= 0.0 || endMillis <= startMillis || met <= 0.0) return 0
         val durationMinutes = (endMillis - startMillis) / 60_000.0
         val calories = ((met * 3.5 * weightKg) / 200.0) * durationMinutes
-        return calories.roundToInt()
+        if (!calories.isFinite() || calories <= 0.0) return 0
+        return calories.coerceAtMost(Int.MAX_VALUE.toDouble()).roundToInt()
     }
 
     fun getRestDurationMillis(setType: String): Long = when (setType.uppercase()) {

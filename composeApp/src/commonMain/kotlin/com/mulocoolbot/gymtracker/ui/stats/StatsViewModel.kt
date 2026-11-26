@@ -13,6 +13,7 @@ import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import com.mulocoolbot.gymtracker.util.formatShortMonthDay
 import kotlin.math.abs
 import kotlin.math.round
+import kotlin.math.roundToLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -130,9 +131,11 @@ class StatsViewModel(
             }
         }
 
+        val optionNames = options.map { it.exerciseName }.toSet()
         val activeExercise = when {
-            interaction.selectedExerciseName in exerciseNames -> interaction.selectedExerciseName
+            interaction.selectedExerciseName in optionNames -> interaction.selectedExerciseName
             options.isNotEmpty() -> options.first().exerciseName
+            interaction.selectedExerciseName in exerciseNames -> interaction.selectedExerciseName
             exerciseNames.isNotEmpty() -> exerciseNames.first()
             else -> ""
         }
@@ -224,9 +227,15 @@ class StatsViewModel(
     }
 
     fun selectMuscleRegion(muscleId: String) {
-        if (muscleId !in MUSCLE_DEFINITIONS) return
+        val meta = MUSCLE_DEFINITIONS[muscleId] ?: return
         interactionState.update { current ->
-            current.copy(selectedMuscleId = muscleId)
+            StatsInteractionState(
+                selectedExerciseName = current.selectedExerciseName,
+                isExerciseDropdownOpen = current.isExerciseDropdownOpen,
+                customPointIndex = current.customPointIndex,
+                heatmapOrientation = meta.second,
+                selectedMuscleId = muscleId
+            )
         }
     }
 
@@ -277,11 +286,7 @@ class StatsViewModel(
         ): ExerciseStatOption {
             val sortedSets = sets.sortedBy { it.timestampMillis }
             val chartPoints = sortedSets.mapIndexed { index, set ->
-                val resolvedE1rm = if (set.e1rm > 0.0) {
-                    set.e1rm
-                } else {
-                    WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
-                }
+                val resolvedE1rm = resolveFiniteE1rm(set)
                 val dateLabel = if (set.timestampMillis >= 86_400_000L) {
                     formatShortMonthDay(set.timestampMillis)
                 } else {
@@ -304,7 +309,11 @@ class StatsViewModel(
             } else {
                 0.0
             }
-            val roundedDelta = round(deltaKg * 10.0) / 10.0
+            val roundedDelta = if (deltaKg.isFinite()) {
+                (deltaKg.coerceIn(-1_000_000_000.0, 1_000_000_000.0) * 10.0).roundToLong() / 10.0
+            } else {
+                0.0
+            }
             val isPositive = roundedDelta >= 0.0
             val deltaPrefix = if (isPositive) "+" else "-"
             val deltaKgText = "$deltaPrefix${formatCompactNumber(abs(roundedDelta))} kg"
@@ -372,45 +381,72 @@ class StatsViewModel(
             }
 
             val name = exerciseName.lowercase()
-            if (name.containsAny("bench", "chest", "pec", "fly", "push up", "pushup", "dip")) {
+            val tokens = name.words()
+            if (tokens.hasWordPrefix("bench", "chest", "pec", "fly", "pushup", "dip") || name.contains("push up")) {
                 matched.add("CHEST")
             }
-            if (name.containsAny("rear delt", "face pull", "reverse fly")) {
+            if (name.contains("rear delt") || name.contains("face pull") || name.contains("reverse fly")) {
                 matched.add("REAR_SHOULDERS")
-            } else if (name.containsAny("shoulder", "overhead", "ohp", "military", "lateral", "delt")) {
+            } else if (tokens.hasWordPrefix("shoulder", "overhead", "ohp", "military", "lateral", "delt")) {
                 matched.add("SHOULDERS")
             }
-            if (name.containsAny("trap", "shrug", "upright row")) {
+            if (tokens.hasWordPrefix("trap", "shrug") || name.contains("upright row")) {
                 matched.add("TRAPS")
             }
-            if (name.containsAny("bicep", "curl", "chin up", "chinup", "hammer") && !name.contains("leg curl")) {
+            if ((tokens.hasWordPrefix("bicep", "curl", "chinup", "hammer") || tokens.hasAnyWord("chin") || name.contains("chin up")) &&
+                !name.contains("leg curl") &&
+                !name.contains("nordic curl")
+            ) {
                 matched.add("BICEPS")
             }
-            if (name.containsAny("squat", "leg press", "lunge", "quad", "leg extension", "hack")) {
+            if (tokens.hasWordPrefix("squat", "lunge", "quad", "hack") || name.contains("leg press") || name.contains("leg extension")) {
                 matched.add("QUADS")
             }
-            if (name.containsAny("ab", "core", "crunch", "plank", "sit up", "situp", "leg raise")) {
+            if (tokens.hasAnyWord("ab", "abs", "core", "plank", "situp") ||
+                tokens.hasWordPrefix("crunch") ||
+                name.contains("sit up") ||
+                name.contains("leg raise")
+            ) {
                 matched.add("ABS")
             }
-            if (name.containsAny("row", "pull", "lat", "deadlift", "chin", "back")) {
+            if ((tokens.hasAnyWord("lat", "lats", "row", "rows", "chin", "pullup", "pullups", "pulldown", "pulldowns") ||
+                    tokens.hasWordPrefix("deadlift") ||
+                    name.contains("pull up") ||
+                    name.contains("pull down") ||
+                    name.contains("lat pull") ||
+                    (tokens.hasAnyWord("back") &&
+                        !name.contains("back squat") &&
+                        !name.contains("lower back") &&
+                        !name.contains("kickback"))) &&
+                !name.contains("upright row") &&
+                !name.contains("face pull")
+            ) {
                 matched.add("LATS")
             }
-            if (name.containsAny("lower back", "hyperextension", "good morning", "deadlift")) {
+            if (name.contains("lower back") || tokens.hasWordPrefix("hyperextension", "deadlift") || name.contains("good morning")) {
                 matched.add("LOWER_BACK")
             }
-            if (name.containsAny("glute", "hip thrust", "bridge")) {
+            if (tokens.hasWordPrefix("glute", "bridge") || name.contains("hip thrust")) {
                 matched.add("GLUTES")
             }
-            if (name.containsAny("tricep", "skull", "pushdown", "dip", "bench", "overhead")) {
+            if (tokens.hasWordPrefix("tricep", "skull", "pushdown", "dip", "bench", "overhead", "kickback")) {
                 matched.add("TRICEPS")
             }
-            if (name.containsAny("hamstring", "rdl", "deadlift", "leg curl", "glute", "hip thrust")) {
+            if (tokens.hasWordPrefix("hamstring", "rdl", "deadlift", "glute") || name.contains("leg curl") || name.contains("hip thrust")) {
                 matched.add("HAMSTRINGS")
             }
-            if (name.containsAny("calf", "calves")) {
+            if (tokens.hasWordPrefix("calf", "calves")) {
                 matched.add("CALVES")
             }
             return matched
+        }
+
+        private fun resolveFiniteE1rm(set: WorkoutSetEntity): Double {
+            return if (set.e1rm.isFinite() && set.e1rm > 0.0 && set.e1rm <= 1_000_000_000.0) {
+                set.e1rm
+            } else {
+                WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
+            }
         }
 
         fun buildProgressionForExercise(
@@ -418,11 +454,7 @@ class StatsViewModel(
         ): Pair<List<ProgressionPoint>, Double> {
             val sortedSets = sets.sortedBy { it.timestampMillis }
             val points = sortedSets.mapIndexed { index, set ->
-                val resolvedE1rm = if (set.e1rm > 0.0) {
-                    set.e1rm
-                } else {
-                    WorkoutCalculator.calculateE1RM(set.weightKg, set.reps)
-                }
+                val resolvedE1rm = resolveFiniteE1rm(set)
                 ProgressionPoint(
                     weekLabel = "W${index + 1}",
                     weightKg = set.weightKg,
@@ -434,7 +466,7 @@ class StatsViewModel(
             val percentageChange = if (points.size >= 2) {
                 val previous = points[points.size - 2].e1rm
                 val latest = points.last().e1rm
-                if (previous > 0.0) {
+                if (previous > 0.0 && previous.isFinite() && latest.isFinite()) {
                     round((((latest - previous) / previous) * 100.0) * 10.0) / 10.0
                 } else {
                     0.0
@@ -450,40 +482,69 @@ class StatsViewModel(
             val regions = mutableSetOf<MuscleRegion>()
             exerciseNames.forEach { rawName ->
                 val name = rawName.lowercase()
-                if (name.containsAny("bench", "chest", "pec", "fly", "push up", "pushup", "dip")) {
+                val tokens = name.words()
+                if (tokens.hasWordPrefix("bench", "chest", "pec", "fly", "pushup", "dip") || name.contains("push up")) {
                     regions.add(MuscleRegion.CHEST)
                 }
-                if (name.containsAny("shoulder", "overhead", "ohp", "military", "lateral", "delt")) {
+                if (tokens.hasWordPrefix("shoulder", "overhead", "ohp", "military", "lateral", "delt") ||
+                    name.contains("face pull") ||
+                    name.contains("reverse fly")
+                ) {
                     regions.add(MuscleRegion.SHOULDERS)
                 }
-                if (name.containsAny("bicep", "curl", "chin up", "chinup", "hammer") && !name.contains("leg curl")) {
+                if ((tokens.hasWordPrefix("bicep", "curl", "chinup", "hammer") || tokens.hasAnyWord("chin") || name.contains("chin up")) &&
+                    !name.contains("leg curl") &&
+                    !name.contains("nordic curl")
+                ) {
                     regions.add(MuscleRegion.BICEPS)
                 }
-                if (name.containsAny("squat", "leg press", "lunge", "quad", "leg extension", "hack")) {
+                if (tokens.hasWordPrefix("squat", "lunge", "quad", "hack") || name.contains("leg press") || name.contains("leg extension")) {
                     regions.add(MuscleRegion.QUADS)
                 }
-                if (name.containsAny("ab", "core", "crunch", "plank", "sit up", "situp", "leg raise")) {
+                if (tokens.hasAnyWord("ab", "abs", "core", "plank", "situp") ||
+                    tokens.hasWordPrefix("crunch") ||
+                    name.contains("sit up") ||
+                    name.contains("leg raise")
+                ) {
                     regions.add(MuscleRegion.ABS)
                 }
-                if (name.containsAny("row", "pull", "lat", "deadlift", "chin", "back")) {
+                if ((tokens.hasAnyWord("lat", "lats", "row", "rows", "chin", "pullup", "pullups", "pulldown", "pulldowns") ||
+                        tokens.hasWordPrefix("deadlift") ||
+                        name.contains("pull up") ||
+                        name.contains("pull down") ||
+                        name.contains("lat pull") ||
+                        (tokens.hasAnyWord("back") &&
+                            !name.contains("back squat") &&
+                            !name.contains("lower back") &&
+                            !name.contains("kickback"))) &&
+                    !name.contains("upright row") &&
+                    !name.contains("face pull")
+                ) {
                     regions.add(MuscleRegion.LATS)
                 }
-                if (name.containsAny("tricep", "skull", "pushdown", "dip", "bench", "overhead")) {
+                if (tokens.hasWordPrefix("tricep", "skull", "pushdown", "dip", "bench", "overhead", "kickback")) {
                     regions.add(MuscleRegion.TRICEPS)
                 }
-                if (name.containsAny("hamstring", "rdl", "deadlift", "leg curl", "glute", "hip thrust")) {
+                if (tokens.hasWordPrefix("hamstring", "rdl", "deadlift", "glute") || name.contains("leg curl") || name.contains("hip thrust")) {
                     regions.add(MuscleRegion.HAMSTRINGS)
                 }
-                if (name.containsAny("calf", "calves")) {
+                if (tokens.hasWordPrefix("calf", "calves")) {
                     regions.add(MuscleRegion.CALVES)
                 }
             }
             return regions
         }
 
-        private fun String.containsAny(vararg keywords: String): Boolean {
-            return keywords.any { this.contains(it) }
-        }
+        private val WORD_SPLIT_REGEX = Regex("[^a-z0-9]+")
+
+        private fun String.words(): Set<String> =
+            split(WORD_SPLIT_REGEX).filter { it.isNotEmpty() }.toSet()
+
+        private fun Set<String>.hasAnyWord(vararg targets: String): Boolean =
+            targets.any { it in this }
+
+        private fun Set<String>.hasWordPrefix(vararg prefixes: String): Boolean =
+            any { token -> prefixes.any { prefix -> token.startsWith(prefix) } }
 
         fun factory(repository: GymRepository): ViewModelProvider.Factory = viewModelFactory {
             initializer { StatsViewModel(repository) }

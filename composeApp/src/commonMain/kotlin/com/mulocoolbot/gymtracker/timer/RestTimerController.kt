@@ -5,6 +5,7 @@ import com.mulocoolbot.gymtracker.util.formatTwoDigits
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class RestTimerController {
 
@@ -17,75 +18,81 @@ class RestTimerController {
         currentMillis: Long = currentEpochMillis()
     ) {
         val totalSeconds = (durationMillis / 1000L).toInt().coerceAtLeast(0)
-        _state.value = RestTimerState(
-            isRunning = true,
-            totalSeconds = totalSeconds,
-            remainingSeconds = totalSeconds,
-            endTimeMillis = currentMillis + durationMillis,
-            alarmRinging = false,
-            label = label
-        )
+        _state.update {
+            RestTimerState(
+                isRunning = true,
+                totalSeconds = totalSeconds,
+                remainingSeconds = totalSeconds,
+                endTimeMillis = currentMillis + durationMillis,
+                alarmRinging = false,
+                label = label
+            )
+        }
     }
 
     fun adjustTimer(
         deltaSeconds: Int,
         currentMillis: Long = currentEpochMillis()
     ) {
-        val current = _state.value
-        if (!current.isRunning) return
+        _state.update { current ->
+            if (!current.isRunning) return@update current
 
-        val updatedEndTimeMillis = (current.endTimeMillis + deltaSeconds * 1000L)
-            .coerceAtLeast(currentMillis)
-        val remainingSeconds = ((updatedEndTimeMillis - currentMillis + 999L) / 1000L)
-            .toInt()
-            .coerceAtLeast(0)
-        val updatedTotalSeconds = maxOf(current.totalSeconds, remainingSeconds)
+            val updatedEndTimeMillis = (current.endTimeMillis + deltaSeconds * 1000L)
+                .coerceAtLeast(currentMillis)
+            val remainingSeconds = ((updatedEndTimeMillis - currentMillis + 999L) / 1000L)
+                .toInt()
+                .coerceAtLeast(0)
+            val updatedTotalSeconds = maxOf(current.totalSeconds, remainingSeconds)
 
-        if (remainingSeconds == 0) {
-            _state.value = current.copy(
-                isRunning = false,
-                totalSeconds = updatedTotalSeconds,
-                remainingSeconds = 0,
-                endTimeMillis = updatedEndTimeMillis,
-                alarmRinging = true
-            )
-        } else {
-            _state.value = current.copy(
-                totalSeconds = updatedTotalSeconds,
-                remainingSeconds = remainingSeconds,
-                endTimeMillis = updatedEndTimeMillis
-            )
+            if (remainingSeconds == 0) {
+                current.copy(
+                    isRunning = false,
+                    totalSeconds = updatedTotalSeconds,
+                    remainingSeconds = 0,
+                    endTimeMillis = updatedEndTimeMillis,
+                    alarmRinging = true
+                )
+            } else {
+                current.copy(
+                    totalSeconds = updatedTotalSeconds,
+                    remainingSeconds = remainingSeconds,
+                    endTimeMillis = updatedEndTimeMillis
+                )
+            }
         }
     }
 
     fun tick(currentMillis: Long = currentEpochMillis()) {
-        val current = _state.value
-        if (!current.isRunning) return
+        _state.update { current ->
+            if (!current.isRunning) return@update current
 
-        val remainingSeconds = ((current.endTimeMillis - currentMillis + 999L) / 1000L)
-            .toInt()
-            .coerceAtLeast(0)
+            val remainingSeconds = ((current.endTimeMillis - currentMillis + 999L) / 1000L)
+                .toInt()
+                .coerceAtLeast(0)
 
-        if (remainingSeconds == 0) {
-            _state.value = current.copy(
-                isRunning = false,
-                remainingSeconds = 0,
-                alarmRinging = true
-            )
-        } else {
-            _state.value = current.copy(remainingSeconds = remainingSeconds)
+            if (remainingSeconds == 0) {
+                current.copy(
+                    isRunning = false,
+                    remainingSeconds = 0,
+                    alarmRinging = true
+                )
+            } else {
+                current.copy(remainingSeconds = remainingSeconds)
+            }
         }
     }
 
     fun dismissOrSkip() {
-        _state.value = RestTimerState(
-            isRunning = false,
-            totalSeconds = 0,
-            remainingSeconds = 0,
-            endTimeMillis = 0L,
-            alarmRinging = false,
-            label = "Rest Timer"
-        )
+        _state.update {
+            RestTimerState(
+                isRunning = false,
+                totalSeconds = 0,
+                remainingSeconds = 0,
+                endTimeMillis = 0L,
+                alarmRinging = false,
+                label = "Rest Timer"
+            )
+        }
     }
 
     fun formatMMSS(seconds: Int): String = Companion.formatMMSS(seconds)

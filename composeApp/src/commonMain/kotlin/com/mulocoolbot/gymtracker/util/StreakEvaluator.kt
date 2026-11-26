@@ -21,7 +21,7 @@ object StreakEvaluator {
         for (epochDay in (lastWorkoutDay + 1) until todayEpochDay) {
             val dayOfWeek = getDayOfWeekIndex(epochDay)
             val plan = planByDay[dayOfWeek]
-            if (plan != null && !plan.isRestDay) {
+            if (plan != null && !plan.isRestDay && plan.planName.isNotBlank()) {
                 missedCount++
             }
         }
@@ -37,7 +37,8 @@ object StreakEvaluator {
         profile: UserProfileEntity,
         todayEpochDay: Long
     ): UserProfileEntity {
-        if (profile.lastWorkoutEpochDay == todayEpochDay) {
+        val lastDay = profile.lastWorkoutEpochDay
+        if (lastDay != null && todayEpochDay <= lastDay) {
             return profile
         }
         return profile.copy(
@@ -48,6 +49,6 @@ object StreakEvaluator {
     }
 
     private fun getDayOfWeekIndex(epochDay: Long): Int {
-        return LocalDate.fromEpochDays(epochDay.toInt()).dayOfWeek.isoDayNumber % 7
+        return LocalDate.fromEpochDays(epochDay.coerceIn(-365_000L, 365_000L).toInt()).dayOfWeek.isoDayNumber % 7
     }
 }

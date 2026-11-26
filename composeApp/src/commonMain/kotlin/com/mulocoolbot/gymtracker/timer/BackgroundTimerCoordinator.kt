@@ -42,7 +42,6 @@ class BackgroundTimerCoordinator(
         when {
             state.alarmRinging -> {
                 notifications.cancel(clearDelivered = false)
-                triggerCompletionIfNeeded(state.endTimeMillis)
             }
             !state.isRunning || state.remainingSeconds <= 0 -> {
                 notifications.cancel(clearDelivered = true)

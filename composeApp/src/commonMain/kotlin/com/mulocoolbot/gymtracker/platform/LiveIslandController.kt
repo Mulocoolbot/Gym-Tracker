@@ -28,6 +28,7 @@ object LiveIslandActionDispatcher {
             activeHandler.onStopRestTimerFromIsland()
         } else {
             RestTimerController.instance.dismissOrSkip()
+            runCatching { createPlatformRestTimerBridge().stopBackgroundTimer() }
         }
     }
 

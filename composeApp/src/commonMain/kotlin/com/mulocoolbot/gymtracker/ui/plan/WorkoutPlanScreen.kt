@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -360,7 +361,10 @@ private fun SavedDayPlanCard(dayPlan: WorkoutPlanEntity) {
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 10.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -389,7 +393,9 @@ private fun SavedDayPlanCard(dayPlan: WorkoutPlanEntity) {
                         text = subtitleText,
                         fontSize = 13.sp,
                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                        color = subtitleColor
+                        color = subtitleColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -709,6 +715,7 @@ private fun InputPlanSubPageContent(
                 Text(
                     text = "Set Workout Plan",
                     fontSize = 24.sp,
+                    lineHeight = 30.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -797,94 +804,112 @@ private fun InputPlanSubPageContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            itemsIndexed(selectedDays, key = { _, dayIndex -> dayIndex }) { index, dayIndex ->
-                DayPlanInputCard(
-                    dayIndex = dayIndex,
-                    currentValue = draftPlanNames[dayIndex].orEmpty(),
-                    onValueChange = { onUpdateDraftName(dayIndex, it) },
-                    modifier = if (index == 0) {
-                        Modifier.tutorialTarget(TutorialTargetId.PLAN_INPUT_AREA)
-                    } else {
-                        Modifier
+        @Composable
+        fun FooterActions() {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CardSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                        .clickable { dismissAndRun(onGoToEditDaysPage) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Edit Days",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CardSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                        .clickable { dismissAndRun(onRequestCancel) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Cancel",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextMuted
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Button(
+                onClick = { dismissAndRun(onSaveWorkoutPlan) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VoltAccent,
+                    contentColor = OnVolt
+                )
+            ) {
+                Icon(
+                    imageVector = SdCardSaveIcon,
+                    contentDescription = "Save Workout Plan",
+                    tint = OnVolt,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Save Workout Plan",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OnVolt
+                )
+            }
+        }
+
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val isCompactHeight = maxHeight < 460.dp
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    itemsIndexed(selectedDays, key = { _, dayIndex -> dayIndex }) { index, dayIndex ->
+                        DayPlanInputCard(
+                            dayIndex = dayIndex,
+                            currentValue = draftPlanNames[dayIndex].orEmpty(),
+                            onValueChange = { onUpdateDraftName(dayIndex, it) },
+                            modifier = if (index == 0) {
+                                Modifier.tutorialTarget(TutorialTargetId.PLAN_INPUT_AREA)
+                            } else {
+                                Modifier
+                            }
+                        )
                     }
-                )
+                    if (isCompactHeight) {
+                        item(key = "compact_footer") {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            FooterActions()
+                        }
+                    }
+                }
+
+                if (!isCompactHeight) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    FooterActions()
+                }
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(CardSurface)
-                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .clickable { dismissAndRun(onGoToEditDaysPage) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Edit Days",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(CardSurface)
-                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .clickable { dismissAndRun(onRequestCancel) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Cancel",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextMuted
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Button(
-            onClick = { dismissAndRun(onSaveWorkoutPlan) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = VoltAccent,
-                contentColor = OnVolt
-            )
-        ) {
-            Icon(
-                imageVector = SdCardSaveIcon,
-                contentDescription = "Save Workout Plan",
-                tint = OnVolt,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Save Workout Plan",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = OnVolt
-            )
         }
     }
 }

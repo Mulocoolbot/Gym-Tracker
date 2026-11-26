@@ -1,8 +1,10 @@
 package com.mulocoolbot.gymtracker.platform
 
 import com.mulocoolbot.gymtracker.timer.WorkoutLiveIslandState
+import kotlin.concurrent.Volatile
 
 private object AndroidLiveIslandController : LiveIslandController {
+    @Volatile
     private var hasActiveSessionSynced: Boolean = false
 
     override fun syncState(state: WorkoutLiveIslandState) {

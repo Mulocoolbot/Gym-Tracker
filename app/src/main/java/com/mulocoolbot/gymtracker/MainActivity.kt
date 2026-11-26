@@ -39,10 +39,10 @@ class MainActivity : ComponentActivity() {
     private fun registerPlatformBindings() {
         AndroidPlatformContext.init(applicationContext)
         AndroidPlatformBindings.startRestTimerService = { ctx, durationMillis, label ->
-            RestTimerService.startRestTimer(ctx, durationMillis, label)
+            RestTimerService.startRestTimer(ctx, durationMillis, label, appliedInMemory = true)
         }
         AndroidPlatformBindings.adjustRestTimerService = { ctx, deltaSeconds ->
-            RestTimerService.adjustRestTimer(ctx, deltaSeconds)
+            RestTimerService.adjustRestTimer(ctx, deltaSeconds, appliedInMemory = true)
         }
         AndroidPlatformBindings.stopRestTimerService = { ctx ->
             RestTimerService.stopRestTimer(ctx)

@@ -35,6 +35,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,9 +94,19 @@ fun TutorialOverlay(
     val bottomSafeInsetPx = safeDrawingInsets.getBottom(density).toFloat()
 
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    var previousNonZeroSize by remember { mutableStateOf(IntSize.Zero) }
     var overlayOffsetInRoot by remember { mutableStateOf(Offset.Zero) }
     var cardHeightPx by remember { mutableStateOf(with(density) { 172.dp.toPx() }) }
-    var lastValidRect by remember { mutableStateOf<Rect?>(null) }
+    var lastValidRect by remember(step.targetId, containerSize) { mutableStateOf<Rect?>(null) }
+
+    LaunchedEffect(containerSize) {
+        if (containerSize.width > 0 && containerSize.height > 0) {
+            if (previousNonZeroSize != IntSize.Zero && previousNonZeroSize != containerSize) {
+                targetBounds.clear()
+            }
+            previousNonZeroSize = containerSize
+        }
+    }
 
     val rawTarget = targetBounds[step.targetId]
     val resolvedTarget = if (rawTarget != null && rawTarget.width > 0f && rawTarget.height > 0f) {

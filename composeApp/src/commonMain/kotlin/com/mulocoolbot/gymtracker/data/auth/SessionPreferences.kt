@@ -134,6 +134,7 @@ class SessionPreferences(
             }
             if (authenticated) {
                 prefs[KEY_SHOULD_SHOW_TUTORIAL] = false
+                prefs[KEY_HAS_COMPLETED_TUTORIAL] = true
             }
         }
 
@@ -200,10 +201,12 @@ class SessionPreferences(
                 prefs[KEY_IS_PROFILE_COMPLETED] = false
             }
 
-            if (!isCurrentlyAuthenticated) {
+            if (entryMode == AuthEntryMode.LOG_IN || wasRegistered) {
+                prefs[KEY_SHOULD_SHOW_TUTORIAL] = false
+                prefs[KEY_HAS_COMPLETED_TUTORIAL] = true
+            } else if (!isCurrentlyAuthenticated) {
                 val hasCompleted = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
-                prefs[KEY_SHOULD_SHOW_TUTORIAL] =
-                    entryMode == AuthEntryMode.SIGN_IN && !wasRegistered && !hasCompleted
+                prefs[KEY_SHOULD_SHOW_TUTORIAL] = !hasCompleted
             }
         }
     }

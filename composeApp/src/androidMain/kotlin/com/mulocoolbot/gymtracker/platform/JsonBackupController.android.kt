@@ -30,8 +30,10 @@ actual fun rememberJsonBackupController(
             coroutineScope.launch {
                 withContext(Dispatchers.IO) {
                     runCatching {
-                        context.contentResolver.openOutputStream(uri)?.use { stream ->
-                            stream.write(json.toByteArray(Charsets.UTF_8))
+                        val stream = context.contentResolver.openOutputStream(uri, "wt")
+                            ?: context.contentResolver.openOutputStream(uri)
+                        stream?.use { output ->
+                            output.write(json.toByteArray(Charsets.UTF_8))
                         }
                     }
                 }
@@ -51,9 +53,7 @@ actual fun rememberJsonBackupController(
                             ?.use { it.readText() }
                     }.getOrNull()
                 }
-                if (!jsonContent.isNullOrBlank()) {
-                    onImportJson(jsonContent)
-                }
+                onImportJson(jsonContent.orEmpty())
             }
         }
     }

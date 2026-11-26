@@ -9,12 +9,17 @@ class RestAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val controller = RestTimerController.instance
         val currentState = controller.state.value
+        if (!currentState.isRunning && !currentState.alarmRinging) {
+            return
+        }
+        val triggeredEndEpochMs = currentState.endTimeMillis
         if (currentState.isRunning) {
             controller.tick(currentMillis = currentState.endTimeMillis)
         }
 
         val serviceIntent = Intent(context, RestTimerService::class.java).apply {
             action = RestTimerService.ACTION_TRIGGER_ALARM
+            putExtra(RestTimerService.EXTRA_END_EPOCH_MS, triggeredEndEpochMs)
         }
         runCatching {
             context.startForegroundService(serviceIntent)

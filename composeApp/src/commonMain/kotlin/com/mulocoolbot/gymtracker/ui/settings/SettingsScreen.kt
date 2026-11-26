@@ -824,7 +824,12 @@ private fun LinkEmailOtpDialog(
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             border = BorderStroke(1.dp, CardBorder)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = if (isOtpStep) "Verify Email" else "Link Email",
                     fontSize = 20.sp,

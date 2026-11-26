@@ -21,20 +21,22 @@ import com.mulocoolbot.gymtracker.util.formatTwoDigits
 import com.mulocoolbot.gymtracker.util.parseDecimalInput
 import com.mulocoolbot.gymtracker.util.todayLocalDate
 import kotlin.jvm.JvmName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
@@ -100,7 +102,8 @@ private data class ActiveSessionDraftState(
     val repsInput: String = "10",
     val selectedSetType: String = WorkoutUiState.SET_TYPE_NORMAL,
     val activeSessionSets: List<DraftWorkoutSet> = emptyList(),
-    val showFinishDialog: Boolean = false
+    val showFinishDialog: Boolean = false,
+    val nextSetId: Long = 1L
 )
 
 private data class RepositoryWorkoutContext(
@@ -110,25 +113,44 @@ private data class RepositoryWorkoutContext(
     val todaySets: List<WorkoutSetEntity>
 )
 
-class WorkoutViewModel(
+@OptIn(ExperimentalCoroutinesApi::class)
+class WorkoutViewModel internal constructor(
     private val repository: GymRepository,
-    private val timerController: RestTimerController = RestTimerController.instance,
-    private val todayEpochDay: Long = todayLocalDate().toEpochDays().toLong()
+    private val timerController: RestTimerController,
+    private val todayEpochDayProvider: () -> Long
 ) : ViewModel() {
 
+    constructor(
+        repository: GymRepository,
+        timerController: RestTimerController = RestTimerController.instance
+    ) : this(
+        repository = repository,
+        timerController = timerController,
+        todayEpochDayProvider = { todayLocalDate().toEpochDays().toLong() }
+    )
+
+    constructor(
+        repository: GymRepository,
+        timerController: RestTimerController = RestTimerController.instance,
+        todayEpochDay: Long
+    ) : this(
+        repository = repository,
+        timerController = timerController,
+        todayEpochDayProvider = { todayEpochDay }
+    )
+
     private val sessionDraft = MutableStateFlow(ActiveSessionDraftState())
-    private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val activeEpochDayFlow = MutableStateFlow(todayEpochDayProvider())
+    private val latestUserWeightKg = MutableStateFlow(70.0)
     private var elapsedTickerJob: Job? = null
-    private var nextDraftSetId: Long = 1L
-    private var latestUserWeightKg: Double = 70.0
 
     private val repositoryContext = combine(
         repository.userProfile,
         repository.weeklyPlan,
         repository.exerciseHistory,
-        repository.observeTodayCompletedSets(todayEpochDay)
+        activeEpochDayFlow.flatMapLatest { repository.observeTodayCompletedSets(it) }
     ) { profile, plans, history, todaySets ->
-        latestUserWeightKg = profile?.weightKg ?: 70.0
+        latestUserWeightKg.value = profile?.weightKg ?: 70.0
         RepositoryWorkoutContext(
             profile = profile,
             weeklyPlan = plans,
@@ -140,15 +162,17 @@ class WorkoutViewModel(
     val uiState: StateFlow<WorkoutUiState> = combine(
         sessionDraft,
         repositoryContext,
-        timerController.state
-    ) { draft, repoContext, timerState ->
-        val dayOfWeek = LocalDate.fromEpochDays(todayEpochDay.toInt()).dayOfWeek.isoDayNumber % 7
+        timerController.state,
+        activeEpochDayFlow
+    ) { draft, repoContext, timerState, activeEpochDay ->
+        val dayOfWeek = LocalDate.fromEpochDays(activeEpochDay.toInt()).dayOfWeek.isoDayNumber % 7
         val scheduledPlan = repoContext.weeklyPlan.firstOrNull { it.dayOfWeek == dayOfWeek }
-        val resolvedPlanName = if (scheduledPlan != null && !scheduledPlan.isRestDay && scheduledPlan.planName.isNotBlank()) {
-            scheduledPlan.planName
-        } else {
-            "Open Workout"
-        }
+        val resolvedPlanName =
+            if (scheduledPlan != null && !scheduledPlan.isRestDay && scheduledPlan.planName.isNotBlank()) {
+                scheduledPlan.planName
+            } else {
+                "Open Workout"
+            }
 
         val nextNormal = computeNextNormalSetNumber(
             exerciseInput = draft.exerciseInput,
@@ -193,23 +217,40 @@ class WorkoutViewModel(
         initialValue = WorkoutLiveIslandState.Inactive
     )
 
-    fun startWorkout(currentMillis: Long = currentEpochMillis()) {
-        elapsedTickerJob?.cancel()
-        sessionDraft.update { current ->
-            current.copy(
-                isWorkoutActive = true,
-                sessionStartMillis = currentMillis,
-                elapsedSeconds = 0L,
-                liveCaloriesBurned = 0,
-                activeSessionSets = emptyList(),
-                showFinishDialog = false
-            )
+    fun refreshCurrentDayIfNeeded() {
+        val currentEpochDay = todayEpochDayProvider()
+        if (activeEpochDayFlow.value != currentEpochDay) {
+            activeEpochDayFlow.value = currentEpochDay
         }
-        elapsedTickerJob = tickerScope.launch {
+    }
+
+    fun startWorkout(currentMillis: Long = currentEpochMillis()) {
+        refreshCurrentDayIfNeeded()
+        var startedNow = false
+        sessionDraft.update { current ->
+            if (current.isWorkoutActive) {
+                current
+            } else {
+                startedNow = true
+                current.copy(
+                    isWorkoutActive = true,
+                    sessionStartMillis = currentMillis,
+                    elapsedSeconds = 0L,
+                    liveCaloriesBurned = 0,
+                    activeSessionSets = emptyList(),
+                    showFinishDialog = false
+                )
+            }
+        }
+        if (!startedNow) return
+
+        elapsedTickerJob?.cancel()
+        elapsedTickerJob = viewModelScope.launch(Dispatchers.Default) {
             while (isActive && sessionDraft.value.isWorkoutActive) {
                 delay(1_000L)
+                refreshCurrentDayIfNeeded()
                 val startMillis = sessionDraft.value.sessionStartMillis
-                if (startMillis > 0L) {
+                if (startMillis > 0L && sessionDraft.value.isWorkoutActive) {
                     val nowMillis = currentEpochMillis()
                     val elapsed = ((nowMillis - startMillis) / 1_000L).coerceAtLeast(0L)
                     val calories = WorkoutCalculator.calculateCalories(
@@ -218,7 +259,7 @@ class WorkoutViewModel(
                         endMillis = nowMillis
                     )
                     sessionDraft.update {
-                        it.copy(
+                        if (!it.isWorkoutActive) it else it.copy(
                             elapsedSeconds = elapsed,
                             liveCaloriesBurned = calories
                         )
@@ -276,7 +317,7 @@ class WorkoutViewModel(
     fun stepWeight(deltaKg: Double) {
         sessionDraft.update { current ->
             val currentVal = parseDecimalInput(current.weightInput) ?: 0.0
-            val nextVal = (currentVal + deltaKg).coerceAtLeast(0.0)
+            val nextVal = (currentVal + deltaKg).coerceIn(0.0, MAX_WEIGHT_KG)
             current.copy(weightInput = formatCompactNumber(nextVal))
         }
     }
@@ -291,8 +332,8 @@ class WorkoutViewModel(
 
     fun stepReps(deltaReps: Int) {
         sessionDraft.update { current ->
-            val currentVal = current.repsInput.trim().toIntOrNull() ?: 0
-            val nextVal = (currentVal + deltaReps).coerceAtLeast(1)
+            val currentVal = current.repsInput.trim().toLongOrNull() ?: 0L
+            val nextVal = (currentVal + deltaReps.toLong()).coerceIn(1L, MAX_REPS.toLong()).toInt()
             current.copy(repsInput = nextVal.toString())
         }
     }
@@ -311,46 +352,55 @@ class WorkoutViewModel(
     fun addSet(
         onTriggerServiceTimer: (durationMillis: Long, label: String) -> Unit = { _, _ -> }
     ) {
-        val current = sessionDraft.value
-        val normalizedExercise = WorkoutCalculator.normalizeExerciseName(current.exerciseInput)
-        val weightKg = parseDecimalInput(current.weightInput) ?: return
-        val reps = current.repsInput.trim().toIntOrNull() ?: return
-        if (normalizedExercise.isEmpty() || weightKg <= 0.0 || reps <= 0) return
-
-        val nextNormalNumber = computeNextNormalSetNumber(
-            exerciseInput = normalizedExercise,
-            sets = current.activeSessionSets
-        )
-        val setLabel = buildSetLabel(
-            setType = current.selectedSetType,
-            normalSetNumber = nextNormalNumber
-        )
-        val e1rm = WorkoutCalculator.calculateE1RM(weightKg = weightKg, reps = reps)
+        refreshCurrentDayIfNeeded()
         val nowMillis = currentEpochMillis()
-        val setId = nextDraftSetId++
-
-        val newSet = DraftWorkoutSet(
-            id = setId,
-            exerciseName = normalizedExercise,
-            muscleGroup = current.selectedMuscleGroup,
-            setType = current.selectedSetType,
-            setLabel = setLabel,
-            setOrder = current.activeSessionSets.size + 1,
-            weightKg = weightKg,
-            reps = reps,
-            e1rm = e1rm,
-            timestampMillis = nowMillis
-        )
+        var pendingTimer: Pair<Long, String>? = null
 
         sessionDraft.update { state ->
+            if (!state.isWorkoutActive) return@update state
+            val normalizedExercise = WorkoutCalculator.normalizeExerciseName(state.exerciseInput)
+            val weightKg = parseDecimalInput(state.weightInput) ?: return@update state
+            val reps = state.repsInput.trim().toIntOrNull() ?: return@update state
+            if (normalizedExercise.isEmpty() ||
+                !weightKg.isFinite() ||
+                weightKg <= 0.0 ||
+                weightKg > MAX_WEIGHT_KG ||
+                reps !in 1..MAX_REPS
+            ) {
+                return@update state
+            }
+
+            val nextNormalNumber = computeNextNormalSetNumber(
+                exerciseInput = normalizedExercise,
+                sets = state.activeSessionSets
+            )
+            val setLabel = buildSetLabel(
+                setType = state.selectedSetType,
+                normalSetNumber = nextNormalNumber
+            )
+            val e1rm = WorkoutCalculator.calculateE1RM(weightKg = weightKg, reps = reps)
+            val newSet = DraftWorkoutSet(
+                id = state.nextSetId,
+                exerciseName = normalizedExercise,
+                muscleGroup = state.selectedMuscleGroup,
+                setType = state.selectedSetType,
+                setLabel = setLabel,
+                setOrder = state.activeSessionSets.size + 1,
+                weightKg = weightKg,
+                reps = reps,
+                e1rm = e1rm,
+                timestampMillis = nowMillis
+            )
+            val restDurationMillis = WorkoutCalculator.getRestDurationMillis(state.selectedSetType)
+            pendingTimer = restDurationMillis to "$setLabel · Rest Timer"
             state.copy(
                 exerciseInput = normalizedExercise,
-                activeSessionSets = state.activeSessionSets + newSet
+                activeSessionSets = state.activeSessionSets + newSet,
+                nextSetId = state.nextSetId + 1L
             )
         }
 
-        val restDurationMillis = WorkoutCalculator.getRestDurationMillis(current.selectedSetType)
-        val timerLabel = "$setLabel · Rest Timer"
+        val (restDurationMillis, timerLabel) = pendingTimer ?: return
         timerController.startTimer(
             durationMillis = restDurationMillis,
             label = timerLabel,
@@ -389,6 +439,7 @@ class WorkoutViewModel(
         deltaSeconds: Int,
         onAdjustServiceTimer: (Int) -> Unit = {}
     ) {
+        if (!timerController.state.value.isRunning) return
         timerController.adjustTimer(deltaSeconds = deltaSeconds)
         onAdjustServiceTimer(deltaSeconds)
     }
@@ -443,8 +494,12 @@ class WorkoutViewModel(
         planName: String,
         onStopServiceTimer: () -> Unit
     ) {
+        val completedDraft = sessionDraft.getAndUpdate { current ->
+            ActiveSessionDraftState(nextSetId = current.nextSetId)
+        }
+        if (!completedDraft.isWorkoutActive) return
+
         elapsedTickerJob?.cancel()
-        val completedDraft = sessionDraft.value
         val startMillis = completedDraft.sessionStartMillis.takeIf { it > 0L }
             ?: currentEpochMillis()
         val endMillis = currentEpochMillis().coerceAtLeast(startMillis + 60_000L)
@@ -453,9 +508,9 @@ class WorkoutViewModel(
         timerController.dismissOrSkip()
         onStopServiceTimer()
 
-        sessionDraft.value = ActiveSessionDraftState()
-
         if (loggedSets.isNotEmpty()) {
+            val persistEpochDay = todayEpochDayProvider()
+            activeEpochDayFlow.value = persistEpochDay
             val setEntities = loggedSets.mapIndexed { index, draftSet ->
                 WorkoutSetEntity(
                     sessionId = 0L,
@@ -472,25 +527,26 @@ class WorkoutViewModel(
                 it.exerciseName to it.muscleGroup
             }
             viewModelScope.launch {
-                repository.recordWorkoutSession(
-                    planName = planName,
-                    startMillis = startMillis,
-                    endMillis = endMillis,
-                    sets = setEntities,
-                    todayEpochDay = todayEpochDay,
-                    muscleGroupsByExercise = muscleGroupsByExercise
-                )
+                withContext(NonCancellable) {
+                    repository.recordWorkoutSession(
+                        planName = planName,
+                        startMillis = startMillis,
+                        endMillis = endMillis,
+                        sets = setEntities,
+                        todayEpochDay = persistEpochDay,
+                        muscleGroupsByExercise = muscleGroupsByExercise
+                    )
+                }
             }
         }
     }
 
     override fun onCleared() {
         elapsedTickerJob?.cancel()
-        tickerScope.cancel()
         super.onCleared()
     }
 
-    private fun currentUserWeightKg(): Double = latestUserWeightKg
+    private fun currentUserWeightKg(): Double = latestUserWeightKg.value
 
     private fun computeNextNormalSetNumber(
         exerciseInput: String,
@@ -511,6 +567,8 @@ class WorkoutViewModel(
     }
 
     companion object {
+        private const val MAX_WEIGHT_KG = 10_000.0
+        private const val MAX_REPS = 10_000
         private val VALID_SET_TYPES = setOf(
             WorkoutUiState.SET_TYPE_WARMUP,
             WorkoutUiState.SET_TYPE_NORMAL,

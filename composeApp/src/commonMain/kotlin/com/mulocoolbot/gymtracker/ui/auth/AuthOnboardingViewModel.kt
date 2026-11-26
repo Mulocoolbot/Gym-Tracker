@@ -17,11 +17,7 @@ import com.mulocoolbot.gymtracker.platform.createAuthBridge
 import com.mulocoolbot.gymtracker.util.currentEpochMillis
 import com.mulocoolbot.gymtracker.util.parseDecimalInput
 import com.mulocoolbot.gymtracker.util.todayLocalDate
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -81,7 +77,6 @@ class AuthOnboardingViewModel(
 ) : ViewModel() {
 
     private val otpFlowState = MutableStateFlow(OtpFlowInternalState())
-    private val countdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var countdownJob: Job? = null
 
     var lastGeneratedOtpCode: String? = null
@@ -123,6 +118,9 @@ class AuthOnboardingViewModel(
         viewModelScope.launch {
             val initialSession = repository.authSession.first()
             if (initialSession.isAuthenticated && initialSession.isProfileCompleted) {
+                if (!initialSession.shouldShowTutorial && !initialSession.hasCompletedTutorial) {
+                    repository.completeTutorial()
+                }
                 repository.evaluateStreakOnLaunch(todayLocalDate().toEpochDays().toLong())
             }
         }
@@ -145,6 +143,7 @@ class AuthOnboardingViewModel(
     }
 
     fun onContinueOffline() {
+        countdownJob?.cancel()
         otpFlowState.update {
             it.copy(
                 hasPassedWelcome = true,
@@ -317,6 +316,7 @@ class AuthOnboardingViewModel(
     fun onGoogleAuthenticated(email: String, displayName: String? = null) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
+        countdownJob?.cancel()
         val entryMode = otpFlowState.value.authEntryMode
         otpFlowState.update {
             it.copy(
@@ -332,6 +332,7 @@ class AuthOnboardingViewModel(
 
     fun onCreateAccount(email: String, password: String) {
         val cleanEmail = email.trim()
+        countdownJob?.cancel()
         otpFlowState.update { it.copy(hasPassedWelcome = true) }
         if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
             otpFlowState.update {
@@ -350,6 +351,7 @@ class AuthOnboardingViewModel(
 
     fun onSignInWithEmailPassword(email: String, password: String) {
         val cleanEmail = email.trim()
+        countdownJob?.cancel()
         otpFlowState.update { it.copy(hasPassedWelcome = true) }
         if (!otpManager.isValidEmail(cleanEmail) || password.length < 6) {
             otpFlowState.update { it.copy(otpErrorMessage = "Enter your email and password") }
@@ -375,6 +377,7 @@ class AuthOnboardingViewModel(
     fun onEmailSignIn(email: String) {
         val cleanEmail = email.trim()
         if (cleanEmail.isEmpty()) return
+        countdownJob?.cancel()
         val entryMode = otpFlowState.value.authEntryMode
         otpFlowState.update {
             it.copy(
@@ -396,7 +399,15 @@ class AuthOnboardingViewModel(
         val cleanName = name.trim()
         val weightKg = parseDecimalInput(weightKgInput) ?: return
         val heightCm = parseDecimalInput(heightCmInput) ?: return
-        if (cleanName.isEmpty() || birthDateMillis <= 0L || weightKg <= 0.0 || heightCm <= 0.0) return
+        if (cleanName.isEmpty() ||
+            birthDateMillis <= 0L ||
+            !weightKg.isFinite() ||
+            weightKg !in 1.0..1_000.0 ||
+            !heightCm.isFinite() ||
+            heightCm !in 30.0..300.0
+        ) {
+            return
+        }
 
         viewModelScope.launch {
             repository.completeOnboardingProfile(
@@ -442,7 +453,14 @@ class AuthOnboardingViewModel(
         heightCm: Double
     ) {
         val cleanName = name.trim()
-        if (cleanName.isEmpty() || weightKg <= 0.0 || heightCm <= 0.0) return
+        if (cleanName.isEmpty() ||
+            !weightKg.isFinite() ||
+            weightKg !in 1.0..1_000.0 ||
+            !heightCm.isFinite() ||
+            heightCm !in 30.0..300.0
+        ) {
+            return
+        }
         viewModelScope.launch {
             repository.updateProfileMetrics(
                 name = cleanName,
@@ -468,7 +486,7 @@ class AuthOnboardingViewModel(
 
     private fun startResendCountdown() {
         countdownJob?.cancel()
-        countdownJob = countdownScope.launch {
+        countdownJob = viewModelScope.launch {
             var remaining = 60
             while (isActive && remaining > 0) {
                 delay(1_000L)
@@ -480,7 +498,6 @@ class AuthOnboardingViewModel(
 
     override fun onCleared() {
         countdownJob?.cancel()
-        countdownScope.cancel()
         super.onCleared()
     }
 

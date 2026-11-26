@@ -194,7 +194,7 @@ private func activeTimerEndDate(for context: ActivityViewContext<MFitWorkoutAttr
     guard context.state.mode == MFitWorkoutMode.restTimer, !context.isStale else {
         return nil
     }
-    guard let timerEndDate = context.state.timerEndDate, timerEndDate > Date() else {
+    guard let timerEndDate = context.state.timerEndDate, timerEndDate.timeIntervalSinceNow > 0.25 else {
         return nil
     }
     return timerEndDate

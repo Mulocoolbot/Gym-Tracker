@@ -86,14 +86,15 @@ object GymBackupManager {
 
         payload.userProfile?.let { profile ->
             if (profile.uid.isBlank() || profile.name.isBlank()) return false
-            if (!profile.heightCm.isFinite() || profile.heightCm <= 0.0) return false
-            if (!profile.weightKg.isFinite() || profile.weightKg <= 0.0) return false
+            if (!profile.heightCm.isFinite() || profile.heightCm !in 30.0..300.0) return false
+            if (!profile.weightKg.isFinite() || profile.weightKg !in 1.0..1_000.0) return false
             if (profile.currentStreak < 0 || profile.consecutiveMissed < 0) return false
         }
 
         val planDays = HashSet<Int>(payload.workoutPlans.size)
         for (plan in payload.workoutPlans) {
             if (plan.dayOfWeek !in 0..6 || !planDays.add(plan.dayOfWeek)) return false
+            if (!plan.isRestDay && plan.planName.isBlank()) return false
         }
 
         for (history in payload.exerciseHistory) {
@@ -103,6 +104,8 @@ object GymBackupManager {
         val sessionIds = HashSet<Long>(payload.workoutSessions.size)
         for (session in payload.workoutSessions) {
             if (session.sessionId <= 0L || !sessionIds.add(session.sessionId)) return false
+            if (session.planName.isBlank()) return false
+            if (session.endTimeMillis != null && session.endTimeMillis < session.startTimeMillis) return false
             if (session.caloriesBurned < 0) return false
         }
 
@@ -111,8 +114,9 @@ object GymBackupManager {
             if (set.setId < 0L) return false
             if (set.setId > 0L && !setIds.add(set.setId)) return false
             if (set.sessionId !in sessionIds) return false
-            if (set.exerciseName.isBlank() || set.reps <= 0) return false
-            if (!set.weightKg.isFinite() || set.weightKg < 0.0) return false
+            if (set.setOrder <= 0) return false
+            if (set.exerciseName.isBlank() || set.reps !in 1..10_000) return false
+            if (!set.weightKg.isFinite() || set.weightKg <= 0.0 || set.weightKg > 10_000.0) return false
             if (!set.e1rm.isFinite() || set.e1rm < 0.0) return false
         }
 

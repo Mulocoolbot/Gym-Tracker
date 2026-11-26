@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -384,7 +385,10 @@ private fun StrengthProgressBentoCard(
                                 text = activeOption?.exerciseName ?: uiState.selectedExerciseName.ifEmpty { "Select Exercise" },
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
 
                             if (activeOption != null) {
@@ -427,12 +431,18 @@ private fun StrengthProgressBentoCard(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 8.dp)
+                                        ) {
                                             Text(
                                                 text = option.exerciseName,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) VoltAccent else TextPrimary
+                                                color = if (isSelected) VoltAccent else TextPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
@@ -482,13 +492,19 @@ private fun StrengthProgressBentoCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Text(
                             text = "${activePoint.dateLabel.uppercase()} · SELECTED SET",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp,
-                            color = TextMuted
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -496,7 +512,9 @@ private fun StrengthProgressBentoCard(
                             fontSize = 15.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -677,6 +695,13 @@ private fun InteractiveE1rmLineChart(
                     join = StrokeJoin.Round
                 )
             )
+        } else if (offsets.size == 1) {
+            drawLine(
+                color = VoltAccent.copy(alpha = 0.45f),
+                start = Offset(horizontalPadPx, offsets.first().y),
+                end = Offset(size.width - horizontalPadPx, offsets.first().y),
+                strokeWidth = 2.dp.toPx()
+            )
         }
 
         val visibleLabelIndices = computeVisibleChartLabelIndices(
@@ -766,12 +791,27 @@ internal fun computeVisibleChartLabelIndices(
     } else {
         ceil(minSpacingPx / stepPx).toInt().coerceAtLeast(1)
     }
-    val visible = linkedSetOf(0, pointCount - 1)
-    if (selectedIndex in 0 until pointCount) {
+    val visible = linkedSetOf<Int>()
+    val hasSelected = selectedIndex in 0 until pointCount
+    if (hasSelected) {
         visible.add(selectedIndex)
     }
+    val minEdgeGapPx = if (minSpacingPx > 0f) minSpacingPx else 0f
+    if (!hasSelected || selectedIndex == 0 || selectedIndex * stepPx >= minEdgeGapPx) {
+        visible.add(0)
+    }
+    val lastIndex = pointCount - 1
+    if (!hasSelected || selectedIndex == lastIndex || (lastIndex - selectedIndex) * stepPx >= minEdgeGapPx) {
+        visible.add(lastIndex)
+    }
+    val minIntermediateGapPx = minEdgeGapPx * 0.75f
     for (i in 0 until pointCount step stride) {
-        visible.add(i)
+        val collides = visible.any { existing ->
+            kotlin.math.abs(i - existing) * stepPx < minIntermediateGapPx
+        }
+        if (!collides) {
+            visible.add(i)
+        }
     }
     return visible
 }
@@ -787,20 +827,23 @@ internal fun computeChartNodeOffsets(
     if (points.isEmpty()) return emptyList()
     val chartWidth = (width - horizontalPadding * 2f).coerceAtLeast(1f)
     val chartHeight = (height - topPadding - bottomPadding).coerceAtLeast(1f)
-    val minE1rm = points.minOf { it.e1rm }
-    val maxE1rm = points.maxOf { it.e1rm }
-    val range = (maxE1rm - minE1rm).takeIf { it > 0.0 } ?: 10.0
+    val safeValues = points.map { point ->
+        if (point.e1rm.isFinite() && point.e1rm >= 0.0) point.e1rm else 0.0
+    }
+    val minE1rm = safeValues.minOrNull() ?: 0.0
+    val maxE1rm = safeValues.maxOrNull() ?: 0.0
+    val range = (maxE1rm - minE1rm).takeIf { it.isFinite() && it > 0.0 } ?: 10.0
 
-    return points.mapIndexed { index, point ->
-        val x = if (points.size == 1) {
+    return safeValues.mapIndexed { index, e1rm ->
+        val x = if (safeValues.size == 1) {
             width / 2f
         } else {
-            horizontalPadding + (index.toFloat() / (points.size - 1).toFloat()) * chartWidth
+            horizontalPadding + (index.toFloat() / (safeValues.size - 1).toFloat()) * chartWidth
         }
         val normalizedY = if (maxE1rm == minE1rm) {
             0.5f
         } else {
-            ((point.e1rm - minE1rm) / range).toFloat()
+            ((e1rm - minE1rm) / range).toFloat()
         }
         val y = topPadding + chartHeight * (1f - normalizedY)
         Offset(x, y)

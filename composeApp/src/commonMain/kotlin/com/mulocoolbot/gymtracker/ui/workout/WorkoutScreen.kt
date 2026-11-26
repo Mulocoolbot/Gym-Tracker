@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -92,14 +93,17 @@ import com.mulocoolbot.gymtracker.util.parseDecimalInput
 private val MUSCLE_GROUP_TAGS = listOf(
     "LATS",
     "TRAPS",
+    "REAR_SHOULDERS",
     "BICEPS",
     "CHEST",
     "SHOULDERS",
+    "TRICEPS",
+    "ABS",
+    "LOWER_BACK",
+    "GLUTES",
     "QUADS",
     "HAMSTRINGS",
-    "ABS",
-    "CALVES",
-    "TRICEPS"
+    "CALVES"
 )
 
 @Composable
@@ -433,8 +437,11 @@ private fun TodayWorkoutPlanHeroCard(
             Text(
                 text = todayPlanName,
                 fontSize = 32.sp,
+                lineHeight = 38.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 20.dp, bottom = 28.dp)
             )
 
@@ -515,7 +522,9 @@ private fun CompletedSetCard(setEntity: WorkoutSetEntity) {
                     text = setEntity.exerciseName,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -1182,7 +1191,9 @@ private fun ActiveSessionSetCard(
                         text = setItem.exerciseName,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -1281,12 +1292,18 @@ private fun FloatingRestTimerOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Text(
                         text = restState.label,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -1294,7 +1311,9 @@ private fun FloatingRestTimerOverlay(
                         fontSize = 28.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = VoltAccent
+                        color = VoltAccent,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 
@@ -1302,42 +1321,44 @@ private fun FloatingRestTimerOverlay(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(InputSurface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
-                            .clickable { onAdjustTimer(-15) }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "-15s",
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
+                    if (!restState.alarmRinging) {
+                        Box(
+                            modifier = Modifier
+                                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(InputSurface)
+                                .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                                .clickable { onAdjustTimer(-15) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "-15s",
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
 
-                    Box(
-                        modifier = Modifier
-                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(InputSurface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
-                            .clickable { onAdjustTimer(15) }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "+15s",
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                        Box(
+                            modifier = Modifier
+                                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(InputSurface)
+                                .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                                .clickable { onAdjustTimer(15) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "+15s",
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
                     }
 
                     Box(
@@ -1505,7 +1526,10 @@ private fun FinishMetricSummaryBox(
             fontSize = 14.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

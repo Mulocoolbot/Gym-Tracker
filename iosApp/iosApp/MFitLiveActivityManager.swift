@@ -21,6 +21,8 @@ final class MFitLiveActivityManager {
 
     private let renderer = KotlinBridgeRenderer()
     private var timerExpiryTask: Task<Void, Never>?
+    private var activitySyncTask: Task<Void, Never>?
+    private var renderGeneration: UInt64 = 0
     private var isConfigured = false
 
     private init() {}
@@ -53,6 +55,8 @@ final class MFitLiveActivityManager {
     private func applyRender(mode: String, endEpochMs: Int64, statusText: String) {
         timerExpiryTask?.cancel()
         timerExpiryTask = nil
+        renderGeneration &+= 1
+        let expectedGeneration = renderGeneration
 
         guard #available(iOS 16.2, *) else { return }
 
@@ -68,7 +72,11 @@ final class MFitLiveActivityManager {
                     timerEndDate: nil,
                     statusText: MFitWorkoutMode.defaultStatusText
                 )
-                startOrUpdateActivity(contentState: ongoingState, staleDate: nil)
+                startOrUpdateActivity(
+                    contentState: ongoingState,
+                    staleDate: nil,
+                    expectedGeneration: expectedGeneration
+                )
                 return
             }
 
@@ -77,7 +85,11 @@ final class MFitLiveActivityManager {
                 timerEndDate: endDate,
                 statusText: statusText.isEmpty ? MFitWorkoutMode.defaultStatusText : statusText
             )
-            startOrUpdateActivity(contentState: timerState, staleDate: endDate)
+            startOrUpdateActivity(
+                contentState: timerState,
+                staleDate: endDate,
+                expectedGeneration: expectedGeneration
+            )
             scheduleTimerExpiryFallback(until: endDate)
 
         case MFitWorkoutMode.workoutGoing:
@@ -87,50 +99,62 @@ final class MFitLiveActivityManager {
                 timerEndDate: nil,
                 statusText: label
             )
-            startOrUpdateActivity(contentState: ongoingState, staleDate: nil)
+            startOrUpdateActivity(
+                contentState: ongoingState,
+                staleDate: nil,
+                expectedGeneration: expectedGeneration
+            )
 
         default:
             endAllActivities()
         }
     }
 
+    private func enqueueActivityWork(_ operation: @escaping @MainActor () async -> Void) {
+        let previousTask = activitySyncTask
+        activitySyncTask = Task { @MainActor in
+            _ = await previousTask?.value
+            await operation()
+        }
+    }
+
     @available(iOS 16.2, *)
     private func startOrUpdateActivity(
         contentState: MFitWorkoutAttributes.ContentState,
-        staleDate: Date?
+        staleDate: Date?,
+        expectedGeneration: UInt64
     ) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        enqueueActivityWork { [weak self] in
+            guard let self, self.renderGeneration == expectedGeneration else { return }
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-        let content = ActivityContent(state: contentState, staleDate: staleDate)
-        let existing = Activity<MFitWorkoutAttributes>.activities
+            let content = ActivityContent(state: contentState, staleDate: staleDate)
+            let existing = Activity<MFitWorkoutAttributes>.activities
 
-        if let active = existing.first {
-            Task {
+            if let active = existing.first {
                 await active.update(content)
-            }
-            if existing.count > 1 {
-                for extra in existing.dropFirst() {
-                    Task {
+                if existing.count > 1 {
+                    for extra in existing.dropFirst() {
                         await extra.end(nil, dismissalPolicy: .immediate)
                     }
                 }
+            } else {
+                let attributes = MFitWorkoutAttributes()
+                _ = try? Activity<MFitWorkoutAttributes>.request(
+                    attributes: attributes,
+                    content: content,
+                    pushType: nil
+                )
             }
-        } else {
-            let attributes = MFitWorkoutAttributes()
-            _ = try? Activity<MFitWorkoutAttributes>.request(
-                attributes: attributes,
-                content: content,
-                pushType: nil
-            )
         }
     }
 
     @available(iOS 16.2, *)
     private func endAllActivities() {
-        let activities = Activity<MFitWorkoutAttributes>.activities
-        guard !activities.isEmpty else { return }
-        for activity in activities {
-            Task {
+        enqueueActivityWork {
+            let activities = Activity<MFitWorkoutAttributes>.activities
+            guard !activities.isEmpty else { return }
+            for activity in activities {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
         }

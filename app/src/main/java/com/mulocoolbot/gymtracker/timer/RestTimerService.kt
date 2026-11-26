@@ -53,15 +53,20 @@ class RestTimerService : Service() {
             ACTION_START_TIMER -> {
                 val durationMillis = intent.getLongExtra(EXTRA_DURATION_MILLIS, 120_000L)
                 val label = intent.getStringExtra(EXTRA_TIMER_LABEL) ?: "Rest Timer"
+                val appliedInMemory = intent.getBooleanExtra(EXTRA_APPLIED_IN_MEMORY, false)
                 isWorkoutOngoing = true
-                handleStartTimer(durationMillis, label)
+                handleStartTimer(durationMillis, label, appliedInMemory)
             }
             ACTION_ADJUST_TIMER -> {
                 val deltaSeconds = intent.getIntExtra(EXTRA_DELTA_SECONDS, 0)
-                handleAdjustTimer(deltaSeconds)
+                val appliedInMemory = intent.getBooleanExtra(EXTRA_APPLIED_IN_MEMORY, false)
+                handleAdjustTimer(deltaSeconds, appliedInMemory)
             }
             ACTION_SYNC_LIVE_ISLAND -> handleSyncLiveIsland(intent)
-            ACTION_TRIGGER_ALARM -> handleTriggerAlarm()
+            ACTION_TRIGGER_ALARM -> {
+                val expectedEndEpochMs = intent.getLongExtra(EXTRA_END_EPOCH_MS, 0L)
+                handleTriggerAlarm(expectedEndEpochMs)
+            }
             ACTION_STOP_REST_TIMER, ACTION_DISMISS_ALARM -> handleStopRestTimerOnly()
             ACTION_STOP_WORKOUT -> handleStopWorkoutAndReset()
         }
@@ -100,17 +105,14 @@ class RestTimerService : Service() {
                 val totalSeconds = intent.getIntExtra(EXTRA_TOTAL_SECONDS, 0)
                 val now = System.currentTimeMillis()
                 val remainingMillis = (endEpochMs - now).coerceAtLeast(0L)
-                if (remainingMillis <= 0L) {
+                val currentState = controller.state.value
+                if (remainingMillis <= 0L || (!currentState.isRunning && !currentState.alarmRinging)) {
                     handleStopRestTimerOnly()
                     return
                 }
-                val currentState = controller.state.value
-                if (!currentState.isRunning || currentState.endTimeMillis != endEpochMs) {
-                    controller.startTimer(
-                        durationMillis = remainingMillis,
-                        label = currentState.label,
-                        currentMillis = now
-                    )
+                if (currentState.endTimeMillis != endEpochMs) {
+                    handleStopRestTimerOnly()
+                    return
                 }
                 val activeState = controller.state.value
                 val resolvedTotal = maxOf(activeState.totalSeconds, totalSeconds)
@@ -132,13 +134,21 @@ class RestTimerService : Service() {
         }
     }
 
-    private fun handleStartTimer(durationMillis: Long, label: String) {
+    private fun handleStartTimer(
+        durationMillis: Long,
+        label: String,
+        appliedInMemory: Boolean
+    ) {
         tickerJob?.cancel()
         alarmSilenceJob?.cancel()
         alarmPlayer.stopAlarm()
 
         val currentState = controller.state.value
-        if (!currentState.isRunning || currentState.endTimeMillis == lastSyncedEndTimeMillis) {
+        if (appliedInMemory && !currentState.isRunning) {
+            handleStopRestTimerOnly()
+            return
+        }
+        if (!appliedInMemory && (!currentState.isRunning || currentState.endTimeMillis == lastSyncedEndTimeMillis)) {
             val now = System.currentTimeMillis()
             controller.startTimer(
                 durationMillis = durationMillis,
@@ -147,6 +157,10 @@ class RestTimerService : Service() {
             )
         }
         val activeState = controller.state.value
+        if (!activeState.isRunning) {
+            handleStopRestTimerOnly()
+            return
+        }
         lastNotifiedSeconds = activeState.remainingSeconds
         lastSyncedEndTimeMillis = activeState.endTimeMillis
 
@@ -161,20 +175,26 @@ class RestTimerService : Service() {
         startTicker()
     }
 
-    private fun handleAdjustTimer(deltaSeconds: Int) {
+    private fun handleAdjustTimer(
+        deltaSeconds: Int,
+        appliedInMemory: Boolean
+    ) {
         if (deltaSeconds == 0) return
 
         val beforeState = controller.state.value
-        if (beforeState.isRunning && beforeState.endTimeMillis == lastSyncedEndTimeMillis) {
+        if (!appliedInMemory && beforeState.isRunning && beforeState.endTimeMillis == lastSyncedEndTimeMillis) {
             controller.adjustTimer(deltaSeconds = deltaSeconds)
         }
 
         val updatedState = controller.state.value
         lastSyncedEndTimeMillis = updatedState.endTimeMillis
 
-        if (updatedState.alarmRinging || !updatedState.isRunning || updatedState.remainingSeconds == 0) {
+        if (updatedState.alarmRinging) {
             cancelBackupAlarm()
-            handleTriggerAlarm()
+            handleTriggerAlarm(updatedState.endTimeMillis)
+        } else if (!updatedState.isRunning || updatedState.remainingSeconds == 0) {
+            cancelBackupAlarm()
+            handleStopRestTimerOnly()
         } else {
             lastNotifiedSeconds = updatedState.remainingSeconds
             scheduleBackupAlarm(updatedState.endTimeMillis)
@@ -197,7 +217,7 @@ class RestTimerService : Service() {
                 controller.tick()
                 val currentState = controller.state.value
                 if (currentState.alarmRinging) {
-                    handleTriggerAlarm()
+                    handleTriggerAlarm(currentState.endTimeMillis)
                     break
                 }
                 if (currentState.isRunning && currentState.remainingSeconds != lastNotifiedSeconds) {
@@ -216,10 +236,20 @@ class RestTimerService : Service() {
         }
     }
 
-    private fun handleTriggerAlarm() {
+    private fun handleTriggerAlarm(expectedEndEpochMs: Long = 0L) {
         tickerJob?.cancel()
         alarmSilenceJob?.cancel()
         val currentState = controller.state.value
+        if (!currentState.isRunning && !currentState.alarmRinging) {
+            handleStopRestTimerOnly()
+            return
+        }
+        if (expectedEndEpochMs > 0L &&
+            currentState.endTimeMillis != 0L &&
+            currentState.endTimeMillis != expectedEndEpochMs
+        ) {
+            return
+        }
         if (currentState.isRunning) {
             controller.tick(currentMillis = currentState.endTimeMillis)
         }
@@ -399,6 +429,7 @@ class RestTimerService : Service() {
         const val EXTRA_ISLAND_MODE = "com.mulocoolbot.gymtracker.extra.ISLAND_MODE"
         const val EXTRA_END_EPOCH_MS = "com.mulocoolbot.gymtracker.extra.END_EPOCH_MS"
         const val EXTRA_TOTAL_SECONDS = "com.mulocoolbot.gymtracker.extra.TOTAL_SECONDS"
+        const val EXTRA_APPLIED_IN_MEMORY = "com.mulocoolbot.gymtracker.extra.APPLIED_IN_MEMORY"
 
         private const val CHANNEL_ID_LIVE_ISLAND = "mfit_workout_live_status_channel"
         private const val CHANNEL_ID_ALARM = "rest_timer_alarm_channel"
@@ -432,20 +463,27 @@ class RestTimerService : Service() {
         fun startRestTimer(
             context: Context,
             durationMillis: Long,
-            label: String = "Rest Timer"
+            label: String = "Rest Timer",
+            appliedInMemory: Boolean = false
         ) {
             val intent = Intent(context, RestTimerService::class.java).apply {
                 action = ACTION_START_TIMER
                 putExtra(EXTRA_DURATION_MILLIS, durationMillis)
                 putExtra(EXTRA_TIMER_LABEL, label)
+                putExtra(EXTRA_APPLIED_IN_MEMORY, appliedInMemory)
             }
             startForegroundCompat(context, intent)
         }
 
-        fun adjustRestTimer(context: Context, deltaSeconds: Int) {
+        fun adjustRestTimer(
+            context: Context,
+            deltaSeconds: Int,
+            appliedInMemory: Boolean = false
+        ) {
             val intent = Intent(context, RestTimerService::class.java).apply {
                 action = ACTION_ADJUST_TIMER
                 putExtra(EXTRA_DELTA_SECONDS, deltaSeconds)
+                putExtra(EXTRA_APPLIED_IN_MEMORY, appliedInMemory)
             }
             runCatching { context.startService(intent) }
         }

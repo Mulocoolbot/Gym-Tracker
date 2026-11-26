@@ -3,6 +3,9 @@ package com.mulocoolbot.gymtracker.ui.tutorial
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -88,6 +91,31 @@ class TutorialController(
             stepIndex += 1
         }
         return steps[stepIndex.coerceIn(0, steps.lastIndex)].tab
+    }
+
+    fun onPrevious(): BottomNavTab {
+        if (stepIndex > 0) {
+            stepIndex -= 1
+        }
+        return steps[stepIndex.coerceIn(0, steps.lastIndex)].tab
+    }
+
+    internal fun restoreState(savedStepIndex: Int, savedDismissed: Boolean) {
+        stepIndex = savedStepIndex.coerceIn(0, steps.lastIndex)
+        isDismissedLocally = savedDismissed
+    }
+
+    companion object {
+        val Saver: Saver<TutorialController, Any> = listSaver<TutorialController, Any>(
+            save = { controller -> listOf(controller.stepIndex, controller.isDismissedLocally) },
+            restore = { saved ->
+                val savedStep = (saved.getOrNull(0) as? Int) ?: 0
+                val savedDismissed = (saved.getOrNull(1) as? Boolean) ?: false
+                val restored = TutorialController()
+                restored.restoreState(savedStepIndex = savedStep, savedDismissed = savedDismissed)
+                restored
+            }
+        )
     }
 
     fun onSkip(
@@ -384,6 +412,15 @@ val MFitTutorialSteps: List<TutorialStep> = listOf(
         description = "Review your estimated 1RM progression per exercise and see which muscles you trained this week on the 2D heatmap."
     )
 )
+
+@Composable
+fun rememberTutorialController(
+    steps: List<TutorialStep> = MFitTutorialSteps
+): TutorialController {
+    return rememberSaveable(saver = TutorialController.Saver) {
+        TutorialController(steps)
+    }
+}
 
 val LocalTutorialTargets = staticCompositionLocalOf<SnapshotStateMap<TutorialTargetId, Rect>?> { null }
 

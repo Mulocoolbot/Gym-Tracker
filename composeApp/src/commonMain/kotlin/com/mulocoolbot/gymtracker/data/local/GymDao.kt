@@ -25,6 +25,34 @@ interface GymDao {
     @Query("DELETE FROM user_profile")
     suspend fun clearUserProfile()
 
+    @Transaction
+    suspend fun replaceSingleUserProfile(profile: UserProfileEntity) {
+        val existing = getUserProfile()
+        if (existing != null && existing.uid != profile.uid) {
+            clearUserProfile()
+        }
+        upsertUserProfile(profile)
+    }
+
+    @Transaction
+    suspend fun recordWorkoutSessionTransaction(
+        session: WorkoutSessionEntity,
+        sets: List<WorkoutSetEntity>,
+        historyItems: List<ExerciseHistoryEntity>,
+        updatedProfile: UserProfileEntity?
+    ) {
+        val sessionId = insertSession(session)
+        if (sets.isNotEmpty()) {
+            insertSets(sets.map { it.copy(setId = 0L, sessionId = sessionId) })
+        }
+        if (historyItems.isNotEmpty()) {
+            upsertExerciseHistories(historyItems)
+        }
+        if (updatedProfile != null) {
+            replaceSingleUserProfile(updatedProfile)
+        }
+    }
+
     @Query("DELETE FROM workout_plan")
     suspend fun clearWorkoutPlans()
 
