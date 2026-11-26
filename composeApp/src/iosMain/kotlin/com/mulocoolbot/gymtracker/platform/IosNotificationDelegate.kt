@@ -2,6 +2,7 @@ package com.mulocoolbot.gymtracker.platform
 
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.util.currentEpochMillis
+import platform.Foundation.NSBundle
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
@@ -52,16 +53,29 @@ private class IosNotificationCenterDelegate : NSObject(), UNUserNotificationCent
     }
 }
 
+internal fun currentNotificationCenterOrNull(): UNUserNotificationCenter? {
+    val mainBundle = NSBundle.mainBundle
+    val ext = mainBundle.bundleURL.pathExtension
+    val hasAppBundle = !mainBundle.bundleIdentifier.isNullOrBlank() &&
+        (ext == "app" || ext == "appex")
+    return if (hasAppBundle) {
+        UNUserNotificationCenter.currentNotificationCenter()
+    } else {
+        null
+    }
+}
+
 internal fun ensureIosNotificationDelegateInstalled() {
+    val center = currentNotificationCenterOrNull() ?: return
     if (notificationCenterDelegate != null) return
     val delegate = IosNotificationCenterDelegate()
     notificationCenterDelegate = delegate
-    UNUserNotificationCenter.currentNotificationCenter().delegate = delegate
+    center.delegate = delegate
 }
 
 internal fun requestIosNotificationAuthorization() {
+    val center = currentNotificationCenterOrNull() ?: return
     ensureIosNotificationDelegateInstalled()
     val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
-    UNUserNotificationCenter.currentNotificationCenter()
-        .requestAuthorizationWithOptions(options) { _, _ -> }
+    center.requestAuthorizationWithOptions(options) { _, _ -> }
 }

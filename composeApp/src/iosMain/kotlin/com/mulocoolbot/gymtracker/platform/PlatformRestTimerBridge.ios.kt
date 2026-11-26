@@ -28,7 +28,6 @@ import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
 import platform.UserNotifications.UNTimeIntervalNotificationTrigger
-import platform.UserNotifications.UNUserNotificationCenter
 
 private object IosRestTimerBridge : PlatformRestTimerBridge {
     private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -37,7 +36,7 @@ private object IosRestTimerBridge : PlatformRestTimerBridge {
 
     private val notificationScheduler = object : LocalTimerNotificationScheduler {
         override fun scheduleCompletion(delayMillis: Long, label: String) {
-            val center = UNUserNotificationCenter.currentNotificationCenter()
+            val center = currentNotificationCenterOrNull() ?: return
             center.removePendingNotificationRequestsWithIdentifiers(listOf(IOS_REST_TIMER_NOTIFICATION_ID))
 
             val content = UNMutableNotificationContent().apply {
@@ -58,7 +57,7 @@ private object IosRestTimerBridge : PlatformRestTimerBridge {
         }
 
         override fun cancel(clearDelivered: Boolean) {
-            val center = UNUserNotificationCenter.currentNotificationCenter()
+            val center = currentNotificationCenterOrNull() ?: return
             center.removePendingNotificationRequestsWithIdentifiers(listOf(IOS_REST_TIMER_NOTIFICATION_ID))
             if (clearDelivered) {
                 center.removeDeliveredNotificationsWithIdentifiers(listOf(IOS_REST_TIMER_NOTIFICATION_ID))

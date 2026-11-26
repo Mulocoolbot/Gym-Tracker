@@ -7,7 +7,6 @@ import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
 import platform.UserNotifications.UNTimeIntervalNotificationTrigger
-import platform.UserNotifications.UNUserNotificationCenter
 
 private object IosAuthBridge : AuthBridge {
     override val isGoogleSignInSupported: Boolean = false
@@ -18,6 +17,7 @@ private object IosAuthBridge : AuthBridge {
     override fun syncEmailCredentials(email: String, password: String, isRegister: Boolean) = Unit
 
     override suspend fun deliverOtp(email: String, otpCode: String) {
+        val center = currentNotificationCenterOrNull() ?: return
         requestIosNotificationAuthorization()
         val content = UNMutableNotificationContent().apply {
             setTitle("MFit Verification Code")
@@ -33,8 +33,7 @@ private object IosAuthBridge : AuthBridge {
             content = content,
             trigger = trigger
         )
-        UNUserNotificationCenter.currentNotificationCenter()
-            .addNotificationRequest(request, withCompletionHandler = null)
+        center.addNotificationRequest(request, withCompletionHandler = null)
     }
 
     private fun hasFirebasePlist(): Boolean {
