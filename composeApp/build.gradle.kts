@@ -65,6 +65,10 @@ dependencies {
     add("kspIosSimulatorArm64", libs.androidx.room.compiler)
 }
 
+tasks.matching { it.name == "kspKotlinIosArm64" || it.name == "kspKotlinIosSimulatorArm64" }.configureEach {
+    dependsOn(tasks.matching { it.name == "commonizeNativeDistribution" })
+}
+
 compose.resources {
     publicResClass = true
     packageOfResClass = "com.mulocoolbot.gymtracker.resources"
