@@ -18,7 +18,14 @@ enum class TutorialTargetId {
     HOME_STREAK,
     HOME_HERO_PLAN,
     PLAN_CREATE_AREA,
+    PLAN_SELECT_DAYS_AREA,
+    PLAN_INPUT_AREA,
+    PLAN_SAVE_BUTTON,
     WORKOUT_START_AREA,
+    WORKOUT_EXERCISE_MUSCLE_AREA,
+    WORKOUT_SET_ENTRY_AREA,
+    WORKOUT_REST_TIMER_AREA,
+    WORKOUT_FINISH_BUTTON,
     STATS_OVERVIEW_AREA
 }
 
@@ -28,7 +35,8 @@ data class TutorialStep(
     val tab: BottomNavTab,
     val title: String,
     val description: String,
-    val totalSteps: Int = 5
+    val totalSteps: Int = 10,
+    val secondaryTargetId: TutorialTargetId? = null
 ) {
     val indicatorText: String
         get() = "$stepNumber/$totalSteps"
@@ -272,41 +280,108 @@ internal fun computeTutorialOverlayLayout(
     )
 }
 
+internal fun computeSecondarySpotlightRect(
+    containerWidth: Float,
+    containerHeight: Float,
+    targetRect: Rect?,
+    cardRect: Rect,
+    topSafeInsetPx: Float,
+    bottomSafeInsetPx: Float,
+    padPx: Float
+): Rect? {
+    if (containerWidth <= 0f || containerHeight <= 0f || targetRect == null) return null
+    if (targetRect.width <= 0f || targetRect.height <= 0f) return null
+
+    val minSpotlightTop = if (containerHeight > topSafeInsetPx + padPx) {
+        topSafeInsetPx.coerceAtLeast(padPx)
+    } else {
+        padPx
+    }
+    val maxSpotlightBottom = (containerHeight - bottomSafeInsetPx.coerceAtLeast(padPx))
+        .coerceAtLeast(minSpotlightTop)
+
+    val rect = Rect(
+        left = (targetRect.left - padPx).coerceIn(padPx, (containerWidth - padPx).coerceAtLeast(padPx)),
+        top = (targetRect.top - padPx).coerceIn(minSpotlightTop, maxSpotlightBottom),
+        right = (targetRect.right + padPx).coerceIn(padPx, (containerWidth - padPx).coerceAtLeast(padPx)),
+        bottom = (targetRect.bottom + padPx).coerceIn(minSpotlightTop, maxSpotlightBottom)
+    )
+    if (rect.width <= 2f || rect.height <= 2f || rect.overlaps(cardRect)) return null
+    return rect
+}
+
 val MFitTutorialSteps: List<TutorialStep> = listOf(
     TutorialStep(
         stepNumber = 1,
         targetId = TutorialTargetId.HOME_STREAK,
         tab = BottomNavTab.HOME,
         title = "Schedule-Aware Streak",
-        description = "Tracks your consistency against your weekly plan. Scheduled rest days protect your streak so you only need to train on active days."
+        description = "Tracks how many scheduled training days you complete in a row. Your planned rest days never break this streak."
     ),
     TutorialStep(
         stepNumber = 2,
         targetId = TutorialTargetId.HOME_HERO_PLAN,
         tab = BottomNavTab.HOME,
         title = "Today's Workout Plan",
-        description = "See your scheduled split for today right on Home and start your workout session in a single tap."
+        description = "Shows the split scheduled for today, like Push Day. Tap Start Workout here whenever you are ready to train."
     ),
     TutorialStep(
         stepNumber = 3,
         targetId = TutorialTargetId.PLAN_CREATE_AREA,
         tab = BottomNavTab.PLAN,
-        title = "Weekly Workout Plan",
-        description = "Choose your active training days and name each split here. Your weekly schedule keeps Home and your streak in sync."
+        title = "Create Your Weekly Plan",
+        description = "Tap + Create Workout Plan to build your weekly routine. Setting a schedule keeps Home and your streak in sync."
     ),
     TutorialStep(
         stepNumber = 4,
-        targetId = TutorialTargetId.WORKOUT_START_AREA,
-        tab = BottomNavTab.WORKOUT,
-        title = "Log Sets & Rest Timer",
-        description = "Start a session to record exercises, weights, and reps. Each logged set automatically triggers your rest timer."
+        targetId = TutorialTargetId.PLAN_SELECT_DAYS_AREA,
+        tab = BottomNavTab.PLAN,
+        title = "Pick Your Training Days",
+        description = "Tap the days you plan to work out each week, such as Monday, Wednesday, and Friday. Unselected days become rest days."
     ),
     TutorialStep(
         stepNumber = 5,
+        targetId = TutorialTargetId.PLAN_INPUT_AREA,
+        tab = BottomNavTab.PLAN,
+        title = "Name Each Day & Save",
+        description = "Type a workout name or tap a quick preset like Push Day, Pull Day, or Legs. When every day is set, tap Save to store your schedule.",
+        secondaryTargetId = TutorialTargetId.PLAN_SAVE_BUTTON
+    ),
+    TutorialStep(
+        stepNumber = 6,
+        targetId = TutorialTargetId.WORKOUT_START_AREA,
+        tab = BottomNavTab.WORKOUT,
+        title = "Start a Workout Session",
+        description = "Tap + Log Workout on the Workout tab to open an active session and begin tracking your sets."
+    ),
+    TutorialStep(
+        stepNumber = 7,
+        targetId = TutorialTargetId.WORKOUT_EXERCISE_MUSCLE_AREA,
+        tab = BottomNavTab.WORKOUT,
+        title = "Exercise Name & Target Muscle",
+        description = "Enter the movement you are doing, such as Bench Press, then pick its muscle tag like CHEST so your stats stay accurate."
+    ),
+    TutorialStep(
+        stepNumber = 8,
+        targetId = TutorialTargetId.WORKOUT_SET_ENTRY_AREA,
+        tab = BottomNavTab.WORKOUT,
+        title = "Weight, Reps & Add Set",
+        description = "Use the - and + steppers to set load and reps, choose Warmup, Normal, or Final Set, then tap Add Set to log it below."
+    ),
+    TutorialStep(
+        stepNumber = 9,
+        targetId = TutorialTargetId.WORKOUT_REST_TIMER_AREA,
+        tab = BottomNavTab.WORKOUT,
+        title = "Rest Timer & Finish Workout",
+        description = "Logging a set starts the rest timer with -15s, +15s, and Skip controls. When your session is complete, tap Finish at the top right to save.",
+        secondaryTargetId = TutorialTargetId.WORKOUT_FINISH_BUTTON
+    ),
+    TutorialStep(
+        stepNumber = 10,
         targetId = TutorialTargetId.STATS_OVERVIEW_AREA,
         tab = BottomNavTab.STATS,
-        title = "Strength Stats & Muscle Heatmap",
-        description = "Monitor your strength progression with Epley e1RM charts and review weekly training volume on the 2D Muscle Heatmap."
+        title = "Strength Chart & Muscle Heatmap",
+        description = "Review your estimated 1RM progression per exercise and see which muscles you trained this week on the 2D heatmap."
     )
 )
 

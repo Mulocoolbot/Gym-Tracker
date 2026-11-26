@@ -87,6 +87,7 @@ import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.ui.tutorial.LocalTutorialTargets
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialController
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialOverlay
+import com.mulocoolbot.gymtracker.ui.tutorial.TutorialPreviewData
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutScreen
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutViewModel
@@ -263,6 +264,12 @@ private fun AuthenticatedMainContent(
         }
     }
 
+    LaunchedEffect(isTutorialActive) {
+        if (!isTutorialActive) {
+            tutorialTargets.clear()
+        }
+    }
+
     CompositionLocalProvider(
         LocalTutorialTargets provides if (isTutorialActive) tutorialTargets else null
     ) {
@@ -341,7 +348,10 @@ private fun AuthenticatedMainContent(
                         ) {
                             composable(BottomNavTab.HOME.route) {
                                 HomeScreen(
-                                    uiState = homeState,
+                                    uiState = TutorialPreviewData.resolveHomeUiState(
+                                        actual = homeState,
+                                        tutorialUiState = tutorialUiState
+                                    ),
                                     onSelectDay = homeViewModel::selectDay,
                                     onStartWorkout = {
                                         ensureNotificationPermission()
@@ -354,7 +364,10 @@ private fun AuthenticatedMainContent(
                             composable(BottomNavTab.PLAN.route) {
                                 val planState by planViewModel.uiState.collectAsState()
                                 WorkoutPlanScreen(
-                                    uiState = planState,
+                                    uiState = TutorialPreviewData.resolveWorkoutPlanUiState(
+                                        actual = planState,
+                                        tutorialUiState = tutorialUiState
+                                    ),
                                     onOpenWizard = planViewModel::startCreateOrEditPlan,
                                     onToggleDay = planViewModel::toggleDaySelection,
                                     onNextStep = planViewModel::goToInputPlanPage,
@@ -376,7 +389,10 @@ private fun AuthenticatedMainContent(
                                 }
 
                                 WorkoutScreen(
-                                    uiState = workoutState,
+                                    uiState = TutorialPreviewData.resolveWorkoutUiState(
+                                        actual = workoutState,
+                                        tutorialUiState = tutorialUiState
+                                    ),
                                     onStartWorkout = workoutViewModel::startWorkout,
                                     onStopWorkout = {
                                         workoutViewModel.stopWorkout(planName = activePlanName) {
@@ -421,7 +437,10 @@ private fun AuthenticatedMainContent(
                             composable(BottomNavTab.STATS.route) {
                                 val statsState by statsViewModel.uiState.collectAsState()
                                 StatsScreen(
-                                    uiState = statsState,
+                                    uiState = TutorialPreviewData.resolveStatsUiState(
+                                        actual = statsState,
+                                        tutorialUiState = tutorialUiState
+                                    ),
                                     onSelectExercise = statsViewModel::selectExercise,
                                     onToggleExerciseDropdown = statsViewModel::toggleExerciseDropdown,
                                     onDismissExerciseDropdown = statsViewModel::dismissExerciseDropdown,
@@ -432,7 +451,8 @@ private fun AuthenticatedMainContent(
                                         ensureNotificationPermission()
                                         workoutViewModel.startWorkout()
                                         navigateToTab(navController, BottomNavTab.WORKOUT)
-                                    }
+                                    },
+                                    isTutorialPreview = isTutorialActive
                                 )
                             }
 

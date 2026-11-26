@@ -144,7 +144,7 @@ class EndToEndBlackBoxTestSuite {
         var activeTab = BottomNavTab.HOME
         val step1Ui = tutorialController.resolveUiState(authVm.uiState.value.authSession)
         assertTrue(step1Ui.isActive)
-        assertEquals("1/5", step1Ui.currentStep.indicatorText)
+        assertEquals("1/10", step1Ui.currentStep.indicatorText)
         assertEquals(BottomNavTab.HOME, step1Ui.currentStep.tab)
         assertEquals(TutorialTargetId.HOME_STREAK, step1Ui.currentStep.targetId)
         assertTrue(step1Ui.showSkipButton)
@@ -152,10 +152,15 @@ class EndToEndBlackBoxTestSuite {
         assertFalse(step1Ui.showDoneButton)
 
         val expectedProgression = listOf(
-            Triple("2/5", BottomNavTab.HOME, TutorialTargetId.HOME_HERO_PLAN),
-            Triple("3/5", BottomNavTab.PLAN, TutorialTargetId.PLAN_CREATE_AREA),
-            Triple("4/5", BottomNavTab.WORKOUT, TutorialTargetId.WORKOUT_START_AREA),
-            Triple("5/5", BottomNavTab.STATS, TutorialTargetId.STATS_OVERVIEW_AREA)
+            Triple("2/10", BottomNavTab.HOME, TutorialTargetId.HOME_HERO_PLAN),
+            Triple("3/10", BottomNavTab.PLAN, TutorialTargetId.PLAN_CREATE_AREA),
+            Triple("4/10", BottomNavTab.PLAN, TutorialTargetId.PLAN_SELECT_DAYS_AREA),
+            Triple("5/10", BottomNavTab.PLAN, TutorialTargetId.PLAN_INPUT_AREA),
+            Triple("6/10", BottomNavTab.WORKOUT, TutorialTargetId.WORKOUT_START_AREA),
+            Triple("7/10", BottomNavTab.WORKOUT, TutorialTargetId.WORKOUT_EXERCISE_MUSCLE_AREA),
+            Triple("8/10", BottomNavTab.WORKOUT, TutorialTargetId.WORKOUT_SET_ENTRY_AREA),
+            Triple("9/10", BottomNavTab.WORKOUT, TutorialTargetId.WORKOUT_REST_TIMER_AREA),
+            Triple("10/10", BottomNavTab.STATS, TutorialTargetId.STATS_OVERVIEW_AREA)
         )
         expectedProgression.forEachIndexed { idx, (indicator, expectedTab, expectedTarget) ->
             activeTab = tutorialController.onNext()
@@ -207,7 +212,7 @@ class EndToEndBlackBoxTestSuite {
                 assertTrue(repo1.authSession.first().shouldShowTutorial)
 
                 val ctrl1 = TutorialController()
-                repeat(4) { ctrl1.onNext() }
+                repeat(9) { ctrl1.onNext() }
                 ctrl1.onDone(
                     onPersistCompleted = { kotlinx.coroutines.runBlocking { repo1.completeTutorial() } },
                     onNavigateHome = {}

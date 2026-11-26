@@ -28,6 +28,7 @@ import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.ui.tutorial.MFitTutorialSteps
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialController
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
+import com.mulocoolbot.gymtracker.ui.tutorial.computeSecondarySpotlightRect
 import com.mulocoolbot.gymtracker.ui.tutorial.computeTutorialOverlayLayout
 import com.mulocoolbot.gymtracker.ui.workout.WorkoutViewModel
 import kotlin.test.AfterTest
@@ -122,7 +123,7 @@ class Sprint6BlackBoxTestSuite {
         val uiState = controller.resolveUiState(sessionAtMain)
         assertTrue(uiState.isActive)
         assertEquals(0, uiState.stepIndex)
-        assertEquals("1/5", uiState.currentStep.indicatorText)
+        assertEquals("1/10", uiState.currentStep.indicatorText)
         assertEquals(BottomNavTab.HOME, uiState.currentStep.tab)
         assertEquals(TutorialTargetId.HOME_STREAK, uiState.currentStep.targetId)
 
@@ -188,7 +189,8 @@ class Sprint6BlackBoxTestSuite {
         assertFalse(TutorialController().resolveUiState(googleLoginVm.uiState.value.authSession).isActive)
 
         val (_, repoFreshGoogleLogin) = createEnvironment(backgroundScope, "s6_02_login_google_fresh.preferences_pb")
-        val freshGoogleLoginVm = AuthOnboardingViewModel(repository = repoFreshGoogleLogin, authBridge = offlineAuthBridge())
+        val freshGoogleLoginVm =
+            AuthOnboardingViewModel(repository = repoFreshGoogleLogin, authBridge = offlineAuthBridge())
         freshGoogleLoginVm.onOpeningAnimationFinished()
         freshGoogleLoginVm.onBeginFromWelcome()
         freshGoogleLoginVm.setAuthEntryMode(AuthEntryMode.LOG_IN)
@@ -254,7 +256,7 @@ class Sprint6BlackBoxTestSuite {
 
                 val controller1 = TutorialController()
                 if (finishViaDone) {
-                    repeat(4) { controller1.onNext() }
+                    repeat(9) { controller1.onNext() }
                     controller1.onDone(
                         onPersistCompleted = {
                             kotlinx.coroutines.runBlocking { repo1.completeTutorial() }
@@ -327,17 +329,22 @@ class Sprint6BlackBoxTestSuite {
         }
 
         recordCurrent()
-        repeat(4) {
+        repeat(9) {
             currentTab = controller.onNext()
             recordCurrent()
         }
 
-        assertEquals(listOf("1/5", "2/5", "3/5", "4/5", "5/5"), observedSteps)
+        assertEquals((1..10).map { "$it/10" }, observedSteps)
         assertEquals(
             listOf(
                 BottomNavTab.HOME,
                 BottomNavTab.HOME,
                 BottomNavTab.PLAN,
+                BottomNavTab.PLAN,
+                BottomNavTab.PLAN,
+                BottomNavTab.WORKOUT,
+                BottomNavTab.WORKOUT,
+                BottomNavTab.WORKOUT,
                 BottomNavTab.WORKOUT,
                 BottomNavTab.STATS
             ),
@@ -348,14 +355,19 @@ class Sprint6BlackBoxTestSuite {
                 TutorialTargetId.HOME_STREAK,
                 TutorialTargetId.HOME_HERO_PLAN,
                 TutorialTargetId.PLAN_CREATE_AREA,
+                TutorialTargetId.PLAN_SELECT_DAYS_AREA,
+                TutorialTargetId.PLAN_INPUT_AREA,
                 TutorialTargetId.WORKOUT_START_AREA,
+                TutorialTargetId.WORKOUT_EXERCISE_MUSCLE_AREA,
+                TutorialTargetId.WORKOUT_SET_ENTRY_AREA,
+                TutorialTargetId.WORKOUT_REST_TIMER_AREA,
                 TutorialTargetId.STATS_OVERVIEW_AREA
             ),
             observedTargets
         )
 
         assertEquals(BottomNavTab.STATS, controller.onNext())
-        assertEquals("5/5", controller.resolveUiState(session).currentStep.indicatorText)
+        assertEquals("10/10", controller.resolveUiState(session).currentStep.indicatorText)
 
         assertEquals(WorkoutPlanSubPage.EMPTY, planVm.uiState.value.subPage)
         assertFalse(workoutVm.uiState.value.isWorkoutActive)
@@ -373,9 +385,9 @@ class Sprint6BlackBoxTestSuite {
         assertEquals(0xFF8E95A5UL, TextMuted.value shr 32)
         assertTrue(TutorialScrimFallback.alpha > TutorialScrimWithBlur.alpha)
 
-        assertEquals(5, MFitTutorialSteps.size)
+        assertEquals(10, MFitTutorialSteps.size)
         MFitTutorialSteps.forEachIndexed { idx, step ->
-            assertEquals("${idx + 1}/5", step.indicatorText)
+            assertEquals("${idx + 1}/10", step.indicatorText)
             assertTrue(step.title.isNotBlank())
             assertTrue(step.description.isNotBlank())
             assertFalse(step.title.any { it.code > 0x2600 })
@@ -411,11 +423,78 @@ class Sprint6BlackBoxTestSuite {
             val contentTop = vp.topInset + 24f
             val contentBottom = vp.height - vp.bottomInset - 96f
             val targetRects = mapOf(
-                TutorialTargetId.HOME_STREAK to Rect(20f, contentTop + 148f, (vp.width - 54f) / 2f + 20f, contentTop + 312f),
-                TutorialTargetId.HOME_HERO_PLAN to Rect(20f, contentTop + 332f, vp.width - 20f, (contentTop + 530f).coerceAtMost(contentBottom)),
-                TutorialTargetId.PLAN_CREATE_AREA to Rect(52f, (contentTop + contentBottom) / 2f + 30f, vp.width - 52f, (contentTop + contentBottom) / 2f + 82f),
-                TutorialTargetId.WORKOUT_START_AREA to Rect(52f, (contentTop + contentBottom) / 2f + 30f, vp.width - 52f, (contentTop + contentBottom) / 2f + 84f),
-                TutorialTargetId.STATS_OVERVIEW_AREA to Rect(48f, (contentTop + contentBottom) / 2f - 90f, vp.width - 48f, (contentTop + contentBottom) / 2f + 56f)
+                TutorialTargetId.HOME_STREAK to Rect(
+                    20f,
+                    contentTop + 148f,
+                    (vp.width - 54f) / 2f + 20f,
+                    contentTop + 312f
+                ),
+                TutorialTargetId.HOME_HERO_PLAN to Rect(
+                    20f,
+                    contentTop + 332f,
+                    vp.width - 20f,
+                    (contentTop + 530f).coerceAtMost(contentBottom)
+                ),
+                TutorialTargetId.PLAN_CREATE_AREA to Rect(
+                    52f,
+                    (contentTop + contentBottom) / 2f + 30f,
+                    vp.width - 52f,
+                    (contentTop + contentBottom) / 2f + 82f
+                ),
+                TutorialTargetId.PLAN_SELECT_DAYS_AREA to Rect(
+                    20f,
+                    contentTop + 110f,
+                    vp.width - 20f,
+                    (contentTop + 340f).coerceAtMost(contentBottom - 200f)
+                ),
+                TutorialTargetId.PLAN_INPUT_AREA to Rect(
+                    20f,
+                    contentTop + 110f,
+                    vp.width - 20f,
+                    (contentTop + 275f).coerceAtMost(contentBottom - 200f)
+                ),
+                TutorialTargetId.PLAN_SAVE_BUTTON to Rect(
+                    vp.width - 108f,
+                    contentTop + 4f,
+                    vp.width - 20f,
+                    contentTop + 48f
+                ),
+                TutorialTargetId.WORKOUT_START_AREA to Rect(
+                    52f,
+                    (contentTop + contentBottom) / 2f + 30f,
+                    vp.width - 52f,
+                    (contentTop + contentBottom) / 2f + 84f
+                ),
+                TutorialTargetId.WORKOUT_EXERCISE_MUSCLE_AREA to Rect(
+                    40f,
+                    contentTop + 80f,
+                    vp.width - 40f,
+                    contentTop + 215f
+                ),
+                TutorialTargetId.WORKOUT_SET_ENTRY_AREA to Rect(
+                    40f,
+                    contentTop + 225f,
+                    vp.width - 40f,
+                    (contentTop + 425f).coerceAtMost(contentBottom)
+                ),
+                TutorialTargetId.WORKOUT_REST_TIMER_AREA to Rect(
+                    20f,
+                    (contentBottom - 120f).coerceAtLeast(contentTop + 220f),
+                    vp.width - 20f,
+                    contentBottom - 12f
+                ),
+                TutorialTargetId.WORKOUT_FINISH_BUTTON to Rect(
+                    vp.width - 116f,
+                    contentTop + 4f,
+                    vp.width - 20f,
+                    contentTop + 48f
+                ),
+                TutorialTargetId.STATS_OVERVIEW_AREA to Rect(
+                    20f,
+                    contentTop + 56f,
+                    vp.width - 20f,
+                    (contentTop + 330f).coerceAtMost(contentBottom - 190f)
+                )
             )
 
             MFitTutorialSteps.forEach { step ->
@@ -445,11 +524,28 @@ class Sprint6BlackBoxTestSuite {
                 )
                 assertTrue(layout.cardLeftPx >= 0f && layout.cardRightPx <= vp.width)
 
-                val cardRect = Rect(layout.cardLeftPx, layout.cardTopPx, layout.cardRightPx, layout.cardTopPx + cardHeight)
+                val cardRect =
+                    Rect(layout.cardLeftPx, layout.cardTopPx, layout.cardRightPx, layout.cardTopPx + cardHeight)
                 assertFalse(
                     cardRect.overlaps(layout.spotlightRect),
                     "${vp.name} step ${step.indicatorText}: card $cardRect overlapped spotlight ${layout.spotlightRect}"
                 )
+
+                step.secondaryTargetId?.let { secondaryId ->
+                    val secondaryRect = computeSecondarySpotlightRect(
+                        containerWidth = vp.width,
+                        containerHeight = vp.height,
+                        targetRect = targetRects.getValue(secondaryId),
+                        cardRect = cardRect,
+                        topSafeInsetPx = vp.topInset,
+                        bottomSafeInsetPx = vp.bottomInset,
+                        padPx = pad
+                    )
+                    assertTrue(
+                        secondaryRect != null && !cardRect.overlaps(secondaryRect),
+                        "${vp.name} step ${step.indicatorText} secondary spotlight missing or overlapping"
+                    )
+                }
 
                 assertTrue(layout.showConnector, "${vp.name} step ${step.indicatorText} connector hidden")
                 if (layout.placeCardBelow) {
@@ -477,10 +573,16 @@ class Sprint6BlackBoxTestSuite {
             }
 
             if (stepsToAdvance == 1) {
-                assertEquals("2/5", controller.resolveUiState(authVm.uiState.value.authSession).currentStep.indicatorText)
+                assertEquals(
+                    "2/10",
+                    controller.resolveUiState(authVm.uiState.value.authSession).currentStep.indicatorText
+                )
                 assertEquals(BottomNavTab.HOME, activeTab)
             } else {
-                assertEquals("3/5", controller.resolveUiState(authVm.uiState.value.authSession).currentStep.indicatorText)
+                assertEquals(
+                    "3/10",
+                    controller.resolveUiState(authVm.uiState.value.authSession).currentStep.indicatorText
+                )
                 assertEquals(BottomNavTab.PLAN, activeTab)
             }
 
@@ -506,9 +608,9 @@ class Sprint6BlackBoxTestSuite {
         val controller = TutorialController()
         var activeTab = controller.resolveUiState(authVm.uiState.value.authSession).currentStep.tab
 
-        repeat(4) { stepIdx ->
+        repeat(9) { stepIdx ->
             val ui = controller.resolveUiState(authVm.uiState.value.authSession)
-            assertEquals("${stepIdx + 1}/5", ui.currentStep.indicatorText)
+            assertEquals("${stepIdx + 1}/10", ui.currentStep.indicatorText)
             assertTrue(ui.showSkipButton)
             assertTrue(ui.showNextButton)
             assertFalse(ui.showDoneButton)
@@ -516,7 +618,7 @@ class Sprint6BlackBoxTestSuite {
         }
 
         val lastUi = controller.resolveUiState(authVm.uiState.value.authSession)
-        assertEquals("5/5", lastUi.currentStep.indicatorText)
+        assertEquals("10/10", lastUi.currentStep.indicatorText)
         assertEquals(BottomNavTab.STATS, activeTab)
         assertFalse(lastUi.showSkipButton)
         assertFalse(lastUi.showNextButton)

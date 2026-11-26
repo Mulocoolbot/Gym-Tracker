@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -497,7 +498,9 @@ private fun SelectDaysSubPageContent(
         Spacer(modifier = Modifier.height(14.dp))
 
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .tutorialTarget(TutorialTargetId.PLAN_SELECT_DAYS_AREA),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items((0..6).toList(), key = { it }) { dayIndex ->
@@ -736,6 +739,7 @@ private fun InputPlanSubPageContent(
                 Row(
                     modifier = Modifier
                         .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                        .tutorialTarget(TutorialTargetId.PLAN_SAVE_BUTTON)
                         .clip(RoundedCornerShape(50))
                         .background(VoltAccent)
                         .clickable { dismissAndRun(onSaveWorkoutPlan) }
@@ -798,11 +802,16 @@ private fun InputPlanSubPageContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(selectedDays, key = { it }) { dayIndex ->
+            itemsIndexed(selectedDays, key = { _, dayIndex -> dayIndex }) { index, dayIndex ->
                 DayPlanInputCard(
                     dayIndex = dayIndex,
                     currentValue = draftPlanNames[dayIndex].orEmpty(),
-                    onValueChange = { onUpdateDraftName(dayIndex, it) }
+                    onValueChange = { onUpdateDraftName(dayIndex, it) },
+                    modifier = if (index == 0) {
+                        Modifier.tutorialTarget(TutorialTargetId.PLAN_INPUT_AREA)
+                    } else {
+                        Modifier
+                    }
                 )
             }
         }
@@ -884,13 +893,14 @@ private fun InputPlanSubPageContent(
 private fun DayPlanInputCard(
     dayIndex: Int,
     currentValue: String,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         border = BorderStroke(1.dp, CardBorder)

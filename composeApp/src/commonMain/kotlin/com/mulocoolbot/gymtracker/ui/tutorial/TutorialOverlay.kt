@@ -144,6 +144,32 @@ fun TutorialOverlay(
         label = "TutorialCardTop"
     )
 
+    val rawSecondaryTarget = step.secondaryTargetId?.let { targetBounds[it] }
+    val resolvedSecondaryTarget = if (
+        rawSecondaryTarget != null &&
+        rawSecondaryTarget.width > 0f &&
+        rawSecondaryTarget.height > 0f
+    ) {
+        rawSecondaryTarget.translate(-overlayOffsetInRoot.x, -overlayOffsetInRoot.y)
+    } else {
+        null
+    }
+    val cardRect = Rect(
+        left = targetLayout.cardLeftPx,
+        top = targetLayout.cardTopPx,
+        right = targetLayout.cardRightPx,
+        bottom = targetLayout.cardTopPx + cardHeightPx
+    )
+    val secondarySpotlight = computeSecondarySpotlightRect(
+        containerWidth = containerSize.width.toFloat(),
+        containerHeight = containerSize.height.toFloat(),
+        targetRect = resolvedSecondaryTarget,
+        cardRect = cardRect,
+        topSafeInsetPx = topSafeInsetPx,
+        bottomSafeInsetPx = bottomSafeInsetPx,
+        padPx = padPx
+    )
+
     val scrimColor = if (backdropLayer != null) TutorialScrimWithBlur else TutorialScrimFallback
 
     Box(
@@ -167,7 +193,8 @@ fun TutorialOverlay(
             scrimColor = scrimColor,
             hasSpotlight = targetLayout.hasSpotlight,
             spotlight = animatedSpotlight,
-            maxCornerPx = maxCornerPx
+            maxCornerPx = maxCornerPx,
+            secondarySpotlight = secondarySpotlight
         )
 
         if (targetLayout.hasSpotlight && animatedSpotlight.width > 2f && animatedSpotlight.height > 2f) {
@@ -179,7 +206,8 @@ fun TutorialOverlay(
                 cardHeightPx = cardHeightPx,
                 cardHorizontalMarginPx = cardHorizontalMarginPx,
                 cardAnchorInsetPx = cardAnchorInsetPx,
-                minConnectorGapPx = minConnectorGapPx
+                minConnectorGapPx = minConnectorGapPx,
+                secondarySpotlight = secondarySpotlight
             )
         }
 
@@ -207,7 +235,8 @@ private fun TutorialSpotlightBackdrop(
     scrimColor: Color,
     hasSpotlight: Boolean,
     spotlight: Rect,
-    maxCornerPx: Float
+    maxCornerPx: Float,
+    secondarySpotlight: Rect? = null
 ) {
     Box(
         modifier = Modifier
@@ -224,6 +253,20 @@ private fun TutorialSpotlightBackdrop(
                         topLeft = spotlight.topLeft,
                         size = spotlight.size,
                         cornerRadius = CornerRadius(corner, corner),
+                        blendMode = BlendMode.Clear
+                    )
+                }
+                if (secondarySpotlight != null && secondarySpotlight.width > 2f && secondarySpotlight.height > 2f) {
+                    val secondaryCorner = minOf(
+                        maxCornerPx,
+                        secondarySpotlight.width / 2f,
+                        secondarySpotlight.height / 2f
+                    )
+                    drawRoundRect(
+                        color = Color.Transparent,
+                        topLeft = secondarySpotlight.topLeft,
+                        size = secondarySpotlight.size,
+                        cornerRadius = CornerRadius(secondaryCorner, secondaryCorner),
                         blendMode = BlendMode.Clear
                     )
                 }
@@ -258,7 +301,8 @@ private fun TutorialSpotlightRingAndConnector(
     cardHeightPx: Float,
     cardHorizontalMarginPx: Float,
     cardAnchorInsetPx: Float,
-    minConnectorGapPx: Float
+    minConnectorGapPx: Float,
+    secondarySpotlight: Rect? = null
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val corner = minOf(maxCornerPx, spotlight.width / 2f, spotlight.height / 2f)
@@ -269,6 +313,21 @@ private fun TutorialSpotlightRingAndConnector(
             cornerRadius = CornerRadius(corner, corner),
             style = Stroke(width = 2.dp.toPx())
         )
+
+        if (secondarySpotlight != null && secondarySpotlight.width > 2f && secondarySpotlight.height > 2f) {
+            val secondaryCorner = minOf(
+                maxCornerPx,
+                secondarySpotlight.width / 2f,
+                secondarySpotlight.height / 2f
+            )
+            drawRoundRect(
+                color = VoltAccent,
+                topLeft = secondarySpotlight.topLeft,
+                size = secondarySpotlight.size,
+                cornerRadius = CornerRadius(secondaryCorner, secondaryCorner),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
 
         val cardLeft = cardHorizontalMarginPx
         val cardRight = (size.width - cardHorizontalMarginPx).coerceAtLeast(cardLeft + 1f)

@@ -719,6 +719,7 @@ private fun ActiveWorkoutHeaderRow(
         Row(
             modifier = Modifier
                 .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                .tutorialTarget(TutorialTargetId.WORKOUT_FINISH_BUTTON)
                 .clip(RoundedCornerShape(50))
                 .background(CardSurface)
                 .border(1.dp, DangerRed, RoundedCornerShape(50))
@@ -776,177 +777,189 @@ private fun ActiveSetEntryFormCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            OutlinedTextField(
-                value = exerciseInput,
-                onValueChange = onExerciseNameChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Exercise name",
-                        color = TextMuted,
-                        fontSize = 14.sp
-                    )
-                },
-                trailingIcon = {
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(CardBorder)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .tutorialTarget(TutorialTargetId.WORKOUT_EXERCISE_MUSCLE_AREA)
+            ) {
+                OutlinedTextField(
+                    value = exerciseInput,
+                    onValueChange = onExerciseNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
                         Text(
-                            text = selectedMuscleGroup,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = VoltAccent
+                            text = "Exercise name",
+                            color = TextMuted,
+                            fontSize = 14.sp
                         )
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                    }
-                ),
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedContainerColor = InputSurface,
-                    unfocusedContainerColor = InputSurface,
-                    focusedBorderColor = VoltAccent,
-                    unfocusedBorderColor = CardBorder,
-                    cursorColor = VoltAccent
+                    },
+                    trailingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CardBorder)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = selectedMuscleGroup,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = VoltAccent
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedContainerColor = InputSurface,
+                        unfocusedContainerColor = InputSurface,
+                        focusedBorderColor = VoltAccent,
+                        unfocusedBorderColor = CardBorder,
+                        cursorColor = VoltAccent
+                    )
                 )
-            )
 
-            if (exerciseSuggestions.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
+                if (exerciseSuggestions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        exerciseSuggestions.forEach { item ->
+                            Box(
+                                modifier = Modifier
+                                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(InputSurface)
+                                    .border(1.dp, CardBorder, RoundedCornerShape(50))
+                                    .clickable { onSelectExerciseSuggestion(item) }
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = item.normalizedName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    exerciseSuggestions.forEach { item ->
+                    MUSCLE_GROUP_TAGS.forEach { muscleTag ->
+                        val isSelected = selectedMuscleGroup.equals(muscleTag, ignoreCase = true)
                         Box(
                             modifier = Modifier
                                 .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(InputSurface)
-                                .border(1.dp, CardBorder, RoundedCornerShape(50))
-                                .clickable { onSelectExerciseSuggestion(item) }
+                                .background(if (isSelected) VoltAccent else InputSurface)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) VoltAccent else CardBorder,
+                                    shape = RoundedCornerShape(50)
+                                )
+                                .clickable { onSelectMuscleGroup(muscleTag) }
                                 .padding(horizontal = 14.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = item.normalizedName,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextPrimary
+                                text = muscleTag,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) OnVolt else TextMuted
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .tutorialTarget(TutorialTargetId.WORKOUT_SET_ENTRY_AREA)
             ) {
-                MUSCLE_GROUP_TAGS.forEach { muscleTag ->
-                    val isSelected = selectedMuscleGroup.equals(muscleTag, ignoreCase = true)
-                    Box(
-                        modifier = Modifier
-                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (isSelected) VoltAccent else InputSurface)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) VoltAccent else CardBorder,
-                                shape = RoundedCornerShape(50)
-                            )
-                            .clickable { onSelectMuscleGroup(muscleTag) }
-                            .padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = muscleTag,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) OnVolt else TextMuted
-                        )
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StepperNumericBox(
+                        label = "Weight (kg)",
+                        value = weightInput,
+                        onValueChange = onWeightChange,
+                        onDecrement = { onStepWeight(-2.5) },
+                        onIncrement = { onStepWeight(2.5) },
+                        keyboardType = KeyboardType.Decimal,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    StepperNumericBox(
+                        label = "Reps",
+                        value = repsInput,
+                        onValueChange = onRepsChange,
+                        onDecrement = { onStepReps(-1) },
+                        onIncrement = { onStepReps(1) },
+                        keyboardType = KeyboardType.Number,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StepperNumericBox(
-                    label = "Weight (kg)",
-                    value = weightInput,
-                    onValueChange = onWeightChange,
-                    onDecrement = { onStepWeight(-2.5) },
-                    onIncrement = { onStepWeight(2.5) },
-                    keyboardType = KeyboardType.Decimal,
-                    modifier = Modifier.weight(1f)
+                SetTypeSelectorRow(
+                    selectedSetType = selectedSetType,
+                    nextNormalSetNumber = nextNormalSetNumber,
+                    onSelectSetType = onSelectSetType
                 )
 
-                StepperNumericBox(
-                    label = "Reps",
-                    value = repsInput,
-                    onValueChange = onRepsChange,
-                    onDecrement = { onStepReps(-1) },
-                    onIncrement = { onStepReps(1) },
-                    keyboardType = KeyboardType.Number,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+                Spacer(modifier = Modifier.height(18.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
+                val canAddSet = exerciseInput.isNotBlank() &&
+                    (parseDecimalInput(weightInput) ?: 0.0) > 0.0 &&
+                    (repsInput.toIntOrNull() ?: 0) > 0
 
-            SetTypeSelectorRow(
-                selectedSetType = selectedSetType,
-                nextNormalSetNumber = nextNormalSetNumber,
-                onSelectSetType = onSelectSetType
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            val canAddSet = exerciseInput.isNotBlank() &&
-                (parseDecimalInput(weightInput) ?: 0.0) > 0.0 &&
-                (repsInput.toIntOrNull() ?: 0) > 0
-
-            Button(
-                onClick = onAddSet,
-                enabled = canAddSet,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = VoltAccent,
-                    contentColor = OnVolt,
-                    disabledContainerColor = InputSurface,
-                    disabledContentColor = TextMuted
-                )
-            ) {
-                Text(
-                    text = "Add Set",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = onAddSet,
+                    enabled = canAddSet,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = VoltAccent,
+                        contentColor = OnVolt,
+                        disabledContainerColor = InputSurface,
+                        disabledContentColor = TextMuted
+                    )
+                ) {
+                    Text(
+                        text = "Add Set",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -1251,7 +1264,9 @@ private fun FloatingRestTimerOverlay(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .tutorialTarget(TutorialTargetId.WORKOUT_REST_TIMER_AREA),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         border = BorderStroke(1.5.dp, VoltAccent)

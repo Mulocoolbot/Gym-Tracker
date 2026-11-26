@@ -90,7 +90,8 @@ fun StatsScreen(
     onSelectChartPoint: (Int) -> Unit = {},
     onSwitchHeatmapOrientation: (HeatmapOrientation) -> Unit = {},
     onSelectMuscleRegion: (String) -> Unit = {},
-    onNavigateToLogWorkout: () -> Unit = {}
+    onNavigateToLogWorkout: () -> Unit = {},
+    isTutorialPreview: Boolean = false
 ) {
     if (!uiState.hasStatisticsData) {
         EmptyStatisticsContent(
@@ -104,7 +105,8 @@ fun StatsScreen(
             onSelectExercise = onSelectExercise,
             onSelectChartPoint = onSelectChartPoint,
             onSwitchHeatmapOrientation = onSwitchHeatmapOrientation,
-            onSelectMuscleRegion = onSelectMuscleRegion
+            onSelectMuscleRegion = onSelectMuscleRegion,
+            isTutorialPreview = isTutorialPreview
         )
     }
 }
@@ -229,14 +231,18 @@ private fun PopulatedStatisticsContent(
     onSelectExercise: (String) -> Unit,
     onSelectChartPoint: (Int) -> Unit,
     onSwitchHeatmapOrientation: (HeatmapOrientation) -> Unit,
-    onSelectMuscleRegion: (String) -> Unit
+    onSelectMuscleRegion: (String) -> Unit,
+    isTutorialPreview: Boolean = false
 ) {
+    val outerVerticalPadding = if (isTutorialPreview) 12.dp else 24.dp
+    val sectionGap = if (isTutorialPreview) 10.dp else 20.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = outerVerticalPadding)
     ) {
         Text(
             text = "Statistics",
@@ -245,23 +251,31 @@ private fun PopulatedStatisticsContent(
             color = TextPrimary
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(sectionGap))
 
-        StrengthProgressBentoCard(
-            uiState = uiState,
-            onToggleExerciseDropdown = onToggleExerciseDropdown,
-            onDismissExerciseDropdown = onDismissExerciseDropdown,
-            onSelectExercise = onSelectExercise,
-            onSelectChartPoint = onSelectChartPoint
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA)
+        ) {
+            StrengthProgressBentoCard(
+                uiState = uiState,
+                onToggleExerciseDropdown = onToggleExerciseDropdown,
+                onDismissExerciseDropdown = onDismissExerciseDropdown,
+                onSelectExercise = onSelectExercise,
+                onSelectChartPoint = onSelectChartPoint,
+                isTutorialPreview = isTutorialPreview
+            )
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(sectionGap))
 
-        MuscleHeatmapBentoCard(
-            uiState = uiState,
-            onSwitchHeatmapOrientation = onSwitchHeatmapOrientation,
-            onSelectMuscleRegion = onSelectMuscleRegion
-        )
+            MuscleHeatmapBentoCard(
+                uiState = uiState,
+                onSwitchHeatmapOrientation = onSwitchHeatmapOrientation,
+                onSelectMuscleRegion = onSelectMuscleRegion,
+                isTutorialPreview = isTutorialPreview
+            )
+        }
     }
 }
 
@@ -271,7 +285,8 @@ private fun StrengthProgressBentoCard(
     onToggleExerciseDropdown: () -> Unit,
     onDismissExerciseDropdown: () -> Unit,
     onSelectExercise: (String) -> Unit,
-    onSelectChartPoint: (Int) -> Unit
+    onSelectChartPoint: (Int) -> Unit,
+    isTutorialPreview: Boolean = false
 ) {
     val activeOption = uiState.selectedExerciseOption
     val points = activeOption?.points.orEmpty()
@@ -284,6 +299,11 @@ private fun StrengthProgressBentoCard(
     var dropdownAnchorWidthPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
 
+    val cardPadding = if (isTutorialPreview) 14.dp else 20.dp
+    val innerGap = if (isTutorialPreview) 8.dp else 14.dp
+    val selectedSetPadding = if (isTutorialPreview) 10.dp else 14.dp
+    val chartHeight = if (isTutorialPreview) 116.dp else 220.dp
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -293,12 +313,10 @@ private fun StrengthProgressBentoCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(cardPadding)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -329,7 +347,7 @@ private fun StrengthProgressBentoCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(innerGap))
 
                 Box(
                     modifier = Modifier
@@ -452,7 +470,7 @@ private fun StrengthProgressBentoCard(
             }
 
             if (activePoint != null) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(innerGap))
 
                 Row(
                     modifier = Modifier
@@ -460,7 +478,7 @@ private fun StrengthProgressBentoCard(
                         .clip(RoundedCornerShape(16.dp))
                         .background(InputSurface)
                         .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                        .padding(14.dp),
+                        .padding(selectedSetPadding),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -502,12 +520,12 @@ private fun StrengthProgressBentoCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(innerGap))
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp)
+                    .height(chartHeight)
                     .clip(RoundedCornerShape(16.dp))
                     .background(AppBackground)
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
@@ -793,7 +811,8 @@ internal fun computeChartNodeOffsets(
 private fun MuscleHeatmapBentoCard(
     uiState: StatsUiState,
     onSwitchHeatmapOrientation: (HeatmapOrientation) -> Unit,
-    onSelectMuscleRegion: (String) -> Unit
+    onSelectMuscleRegion: (String) -> Unit,
+    isTutorialPreview: Boolean = false
 ) {
     val selectedMuscle = uiState.muscleVolumes[uiState.selectedMuscleId]
         ?: MuscleVolumeUi(
@@ -810,6 +829,11 @@ private fun MuscleHeatmapBentoCard(
         else -> "Rested"
     }
 
+    val cardPadding = if (isTutorialPreview) 14.dp else 20.dp
+    val innerGap = if (isTutorialPreview) 8.dp else 14.dp
+    val selectedBoxPadding = if (isTutorialPreview) 10.dp else 14.dp
+    val canvasBoxPadding = if (isTutorialPreview) 10.dp else 16.dp
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -819,7 +843,7 @@ private fun MuscleHeatmapBentoCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(cardPadding)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -855,7 +879,7 @@ private fun MuscleHeatmapBentoCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(innerGap))
 
             Row(
                 modifier = Modifier
@@ -863,7 +887,7 @@ private fun MuscleHeatmapBentoCard(
                     .clip(RoundedCornerShape(16.dp))
                     .background(InputSurface)
                     .border(1.dp, VoltAccent.copy(alpha = 0.40f), RoundedCornerShape(16.dp))
-                    .padding(14.dp),
+                    .padding(selectedBoxPadding),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -912,7 +936,7 @@ private fun MuscleHeatmapBentoCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(innerGap))
 
             Column(
                 modifier = Modifier
@@ -920,7 +944,7 @@ private fun MuscleHeatmapBentoCard(
                     .clip(RoundedCornerShape(16.dp))
                     .background(AppBackground)
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .padding(16.dp)
+                    .padding(canvasBoxPadding)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -940,7 +964,8 @@ private fun MuscleHeatmapBentoCard(
                     orientation = uiState.heatmapOrientation,
                     selectedMuscleId = uiState.selectedMuscleId,
                     muscleVolumes = uiState.muscleVolumes,
-                    onSelectMuscleRegion = onSelectMuscleRegion
+                    onSelectMuscleRegion = onSelectMuscleRegion,
+                    isTutorialPreview = isTutorialPreview
                 )
             }
         }
@@ -1000,12 +1025,13 @@ private fun InteractiveAnatomicalCanvas(
     orientation: HeatmapOrientation,
     selectedMuscleId: String,
     muscleVolumes: Map<String, MuscleVolumeUi>,
-    onSelectMuscleRegion: (String) -> Unit
+    onSelectMuscleRegion: (String) -> Unit,
+    isTutorialPreview: Boolean = false
 ) {
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(228.dp)
+            .height(if (isTutorialPreview) 144.dp else 228.dp)
             .pointerInput(orientation) {
                 detectTapGestures { tapOffset ->
                     val regions = buildAnatomicalRegions(
