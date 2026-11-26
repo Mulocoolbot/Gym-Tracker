@@ -108,6 +108,49 @@ class TutorialController(
     }
 }
 
+internal data class TutorialConnectorGeometry(
+    val showConnector: Boolean,
+    val cardAnchor: Offset,
+    val ringAnchor: Offset
+)
+
+internal fun computeTutorialConnector(
+    spotlightRect: Rect,
+    hasSpotlight: Boolean,
+    placeCardBelow: Boolean,
+    cardTopPx: Float,
+    cardHeightPx: Float,
+    cardLeftPx: Float,
+    cardRightPx: Float,
+    cardAnchorInsetPx: Float,
+    minConnectorGapPx: Float
+): TutorialConnectorGeometry {
+    val anchorX = spotlightRect.center.x.coerceIn(
+        (cardLeftPx + cardAnchorInsetPx).coerceAtMost(cardRightPx),
+        (cardRightPx - cardAnchorInsetPx).coerceAtLeast(cardLeftPx)
+    )
+    val ringAnchor = if (placeCardBelow) {
+        Offset(spotlightRect.center.x, spotlightRect.bottom)
+    } else {
+        Offset(spotlightRect.center.x, spotlightRect.top)
+    }
+    val cardAnchor = if (placeCardBelow) {
+        Offset(anchorX, cardTopPx)
+    } else {
+        Offset(anchorX, cardTopPx + cardHeightPx)
+    }
+    val signedGap = if (placeCardBelow) {
+        cardAnchor.y - ringAnchor.y
+    } else {
+        ringAnchor.y - cardAnchor.y
+    }
+    return TutorialConnectorGeometry(
+        showConnector = hasSpotlight && signedGap >= minConnectorGapPx,
+        cardAnchor = cardAnchor,
+        ringAnchor = ringAnchor
+    )
+}
+
 internal data class TutorialOverlayLayout(
     val spotlightRect: Rect,
     val hasSpotlight: Boolean,
@@ -137,31 +180,34 @@ internal fun computeTutorialOverlayLayout(
     minConnectorGapPx: Float
 ): TutorialOverlayLayout {
     val hasContainer = containerWidth > 0f && containerHeight > 0f
-    val spotlightRect = if (hasContainer && targetRect != null && targetRect.width > 0f && targetRect.height > 0f) {
+    val minSpotlightTop = if (hasContainer && containerHeight > topSafeInsetPx + padPx) {
+        topSafeInsetPx.coerceAtLeast(padPx)
+    } else {
+        padPx
+    }
+    val maxSpotlightBottom = (containerHeight - bottomSafeInsetPx.coerceAtLeast(padPx))
+        .coerceAtLeast(minSpotlightTop)
+
+    var spotlightRect = if (hasContainer && targetRect != null && targetRect.width > 0f && targetRect.height > 0f) {
         Rect(
             left = (targetRect.left - padPx).coerceIn(padPx, (containerWidth - padPx).coerceAtLeast(padPx)),
-            top = (targetRect.top - padPx).coerceIn(padPx, (containerHeight - padPx).coerceAtLeast(padPx)),
+            top = (targetRect.top - padPx).coerceIn(minSpotlightTop, maxSpotlightBottom),
             right = (targetRect.right + padPx).coerceIn(padPx, (containerWidth - padPx).coerceAtLeast(padPx)),
-            bottom = (targetRect.bottom + padPx).coerceIn(padPx, (containerHeight - padPx).coerceAtLeast(padPx))
+            bottom = (targetRect.bottom + padPx).coerceIn(minSpotlightTop, maxSpotlightBottom)
         )
     } else {
         Rect.Zero
     }
 
     val hasSpotlight = spotlightRect.width > 2f && spotlightRect.height > 2f
-    val cornerRadiusPx = if (hasSpotlight) {
-        minOf(maxCornerPx, spotlightRect.width / 2f, spotlightRect.height / 2f)
-    } else {
-        maxCornerPx
-    }
-
     val minCardTop = topSafeInsetPx + edgeMarginPx
     val maxCardTop = (containerHeight - bottomSafeInsetPx - edgeMarginPx - cardHeightPx)
         .coerceAtLeast(minCardTop)
 
+    val spaceBelow = (containerHeight - bottomSafeInsetPx - edgeMarginPx) - spotlightRect.bottom
+    val spaceAbove = spotlightRect.top - (topSafeInsetPx + edgeMarginPx)
+
     val placeCardBelow = if (hasSpotlight && hasContainer) {
-        val spaceBelow = (containerHeight - bottomSafeInsetPx - edgeMarginPx) - spotlightRect.bottom
-        val spaceAbove = spotlightRect.top - (topSafeInsetPx + edgeMarginPx)
         spaceBelow >= cardHeightPx + connectorGapPx || spaceBelow >= spaceAbove
     } else {
         true
@@ -169,49 +215,59 @@ internal fun computeTutorialOverlayLayout(
 
     val cardTopPx = if (hasSpotlight && hasContainer) {
         if (placeCardBelow) {
-            (spotlightRect.bottom + connectorGapPx).coerceIn(minCardTop, maxCardTop)
+            if (spaceBelow >= cardHeightPx + minConnectorGapPx) {
+                val effectiveGap = (spaceBelow - cardHeightPx).coerceIn(minConnectorGapPx, connectorGapPx)
+                (spotlightRect.bottom + effectiveGap).coerceIn(minCardTop, maxCardTop)
+            } else {
+                val trimmedBottom = (maxCardTop - minConnectorGapPx).coerceAtLeast(spotlightRect.top + 36f)
+                spotlightRect = spotlightRect.copy(bottom = minOf(spotlightRect.bottom, trimmedBottom))
+                maxCardTop
+            }
         } else {
-            (spotlightRect.top - connectorGapPx - cardHeightPx).coerceIn(minCardTop, maxCardTop)
+            if (spaceAbove >= cardHeightPx + minConnectorGapPx) {
+                val effectiveGap = (spaceAbove - cardHeightPx).coerceIn(minConnectorGapPx, connectorGapPx)
+                (spotlightRect.top - effectiveGap - cardHeightPx).coerceIn(minCardTop, maxCardTop)
+            } else {
+                val trimmedTop = (minCardTop + cardHeightPx + minConnectorGapPx).coerceAtMost(spotlightRect.bottom - 36f)
+                spotlightRect = spotlightRect.copy(top = maxOf(spotlightRect.top, trimmedTop))
+                minCardTop
+            }
         }
     } else {
         maxCardTop
     }
 
+    val finalHasSpotlight = spotlightRect.width > 2f && spotlightRect.height > 2f
+    val cornerRadiusPx = if (finalHasSpotlight) {
+        minOf(maxCornerPx, spotlightRect.width / 2f, spotlightRect.height / 2f)
+    } else {
+        maxCornerPx
+    }
+
     val cardLeftPx = cardHorizontalMarginPx
     val cardRightPx = (containerWidth - cardHorizontalMarginPx).coerceAtLeast(cardLeftPx + 1f)
-    val anchorX = spotlightRect.center.x.coerceIn(
-        (cardLeftPx + cardAnchorInsetPx).coerceAtMost(cardRightPx),
-        (cardRightPx - cardAnchorInsetPx).coerceAtLeast(cardLeftPx)
+    val connector = computeTutorialConnector(
+        spotlightRect = spotlightRect,
+        hasSpotlight = finalHasSpotlight,
+        placeCardBelow = placeCardBelow,
+        cardTopPx = cardTopPx,
+        cardHeightPx = cardHeightPx,
+        cardLeftPx = cardLeftPx,
+        cardRightPx = cardRightPx,
+        cardAnchorInsetPx = cardAnchorInsetPx,
+        minConnectorGapPx = minConnectorGapPx
     )
-
-    val ringAnchor = if (placeCardBelow) {
-        Offset(spotlightRect.center.x, spotlightRect.bottom)
-    } else {
-        Offset(spotlightRect.center.x, spotlightRect.top)
-    }
-
-    val cardAnchor = if (placeCardBelow) {
-        Offset(anchorX, cardTopPx)
-    } else {
-        Offset(anchorX, cardTopPx + cardHeightPx)
-    }
-
-    val signedGap = if (placeCardBelow) {
-        cardAnchor.y - ringAnchor.y
-    } else {
-        ringAnchor.y - cardAnchor.y
-    }
 
     return TutorialOverlayLayout(
         spotlightRect = spotlightRect,
-        hasSpotlight = hasSpotlight,
+        hasSpotlight = finalHasSpotlight,
         placeCardBelow = placeCardBelow,
         cardTopPx = cardTopPx,
         cardLeftPx = cardLeftPx,
         cardRightPx = cardRightPx,
-        showConnector = hasSpotlight && signedGap >= minConnectorGapPx,
-        cardAnchor = cardAnchor,
-        ringAnchor = ringAnchor,
+        showConnector = connector.showConnector,
+        cardAnchor = connector.cardAnchor,
+        ringAnchor = connector.ringAnchor,
         cornerRadiusPx = cornerRadiusPx
     )
 }

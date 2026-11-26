@@ -1,6 +1,7 @@
 package com.mulocoolbot.gymtracker.ui.auth
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,14 +66,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
 import com.mulocoolbot.gymtracker.platform.createAuthBridge
+import com.mulocoolbot.gymtracker.platform.iosEdgeSwipeBack
 import com.mulocoolbot.gymtracker.platform.rememberGoogleSignInAction
+import com.mulocoolbot.gymtracker.resources.Res
+import com.mulocoolbot.gymtracker.resources.ic_gymtracker_mark
 import com.mulocoolbot.gymtracker.ui.components.ArrowRightIcon
 import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
-import com.mulocoolbot.gymtracker.ui.components.DumbbellIcon
 import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
 import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
+import com.mulocoolbot.gymtracker.ui.theme.AppBackground
+import com.mulocoolbot.gymtracker.ui.theme.CardBorder
+import com.mulocoolbot.gymtracker.ui.theme.CardSurface
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
+import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
+import com.mulocoolbot.gymtracker.ui.theme.TextMuted
+import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import com.mulocoolbot.gymtracker.util.epochMillisToIsoDateUtc
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
@@ -82,14 +93,7 @@ import kotlin.math.round
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
-
-private val AuthScreenBg = Color(0xFF0B0C0E)
-private val AuthCardBg = Color(0xFF14161B)
-private val AuthInputBg = Color(0xFF1A1D24)
-private val AuthBorder = Color(0xFF232730)
-private val AuthVolt = Color(0xFFCCFF00)
-private val AuthWhite = Color(0xFFFFFFFF)
-private val AuthMuted = Color(0xFF8C92A4)
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun WelcomeScreen(
@@ -98,7 +102,7 @@ fun WelcomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthScreenBg)
+            .background(AppBackground)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -108,15 +112,14 @@ fun WelcomeScreen(
             modifier = Modifier
                 .size(64.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(AuthCardBg)
-                .border(1.dp, AuthBorder, RoundedCornerShape(22.dp)),
+                .background(CardSurface)
+                .border(1.dp, CardBorder, RoundedCornerShape(22.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = DumbbellIcon,
+            Image(
+                painter = painterResource(Res.drawable.ic_gymtracker_mark),
                 contentDescription = "MFIT Emblem",
-                tint = AuthVolt,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(36.dp)
             )
         }
 
@@ -128,14 +131,14 @@ fun WelcomeScreen(
                 fontSize = 56.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
-                color = AuthWhite
+                color = TextPrimary
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "See the Progress",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AuthVolt
+                color = VoltAccent
             )
         }
 
@@ -144,7 +147,7 @@ fun WelcomeScreen(
                 .fillMaxWidth()
                 .height(60.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(AuthVolt)
+                .background(VoltAccent)
                 .clickable(onClick = onBeginClick)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
@@ -256,7 +259,12 @@ private fun EmailInputStepContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthScreenBg)
+            .background(AppBackground)
+            .iosEdgeSwipeBack(onBack = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                onBackToWelcome()
+            })
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .dismissKeyboardOnTap()
             .verticalScroll(scrollState)
@@ -268,22 +276,23 @@ private fun EmailInputStepContent(
         ) {
             Box(
                 modifier = Modifier
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(AuthCardBg)
-                    .border(1.dp, AuthBorder, RoundedCornerShape(50))
+                    .background(CardSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(50))
                     .clickable {
                         focusManager.clearFocus()
                         keyboardController?.hide()
                         onBackToWelcome()
                     }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (isLinkingFromSettings) "Cancel" else "Back",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthWhite
+                    color = TextPrimary
                 )
             }
         }
@@ -294,8 +303,8 @@ private fun EmailInputStepContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(AuthCardBg)
-                .border(1.dp, AuthBorder, RoundedCornerShape(16.dp))
+                .background(CardSurface)
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -319,7 +328,7 @@ private fun EmailInputStepContent(
             text = if (isSignInMode) "Sign In" else "Log In",
             fontSize = 30.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = AuthWhite
+            color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -331,7 +340,7 @@ private fun EmailInputStepContent(
                 "Welcome back. Log in with your registered account."
             },
             fontSize = 14.sp,
-            color = AuthMuted
+            color = TextMuted
         )
 
         if (!isCloudAuthConfigured && !isLinkingFromSettings) {
@@ -339,8 +348,8 @@ private fun EmailInputStepContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = AuthCardBg),
-                border = BorderStroke(1.dp, AuthVolt.copy(alpha = 0.45f))
+                colors = CardDefaults.cardColors(containerColor = CardSurface),
+                border = BorderStroke(1.dp, VoltAccent.copy(alpha = 0.45f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -348,14 +357,14 @@ private fun EmailInputStepContent(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.8.sp,
-                        color = AuthVolt
+                        color = VoltAccent
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Firebase iOS (GoogleService-Info.plist) is not configured. All workouts, rest timers, and JSON backups work 100% offline without an account.",
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
-                        color = AuthMuted
+                        color = TextMuted
                     )
                 }
             }
@@ -380,7 +389,7 @@ private fun EmailInputStepContent(
         ) {
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
-                color = AuthBorder,
+                color = CardBorder,
                 thickness = 1.dp
             )
             Text(
@@ -388,12 +397,12 @@ private fun EmailInputStepContent(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.8.sp,
-                color = AuthMuted,
+                color = TextMuted,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
-                color = AuthBorder,
+                color = CardBorder,
                 thickness = 1.dp
             )
         }
@@ -403,8 +412,8 @@ private fun EmailInputStepContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
-            border = BorderStroke(1.dp, AuthBorder)
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, CardBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -412,7 +421,7 @@ private fun EmailInputStepContent(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
-                    color = AuthMuted
+                    color = TextMuted
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -424,7 +433,7 @@ private fun EmailInputStepContent(
                         onClearError()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "you@example.com", color = AuthMuted) },
+                    placeholder = { Text(text = "you@example.com", color = TextMuted) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
@@ -467,10 +476,10 @@ private fun EmailInputStepContent(
                         .height(54.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AuthVolt,
+                        containerColor = VoltAccent,
                         contentColor = OnVolt,
-                        disabledContainerColor = AuthInputBg,
-                        disabledContentColor = AuthMuted
+                        disabledContainerColor = InputSurface,
+                        disabledContentColor = TextMuted
                     )
                 ) {
                     Text(
@@ -499,17 +508,17 @@ private fun EmailInputStepContent(
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, AuthBorder),
+                border = BorderStroke(1.dp, CardBorder),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = AuthCardBg,
-                    contentColor = AuthWhite
+                    containerColor = CardSurface,
+                    contentColor = TextPrimary
                 )
             ) {
                 Text(
                     text = "Continue Offline Without Account",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthWhite
+                    color = TextPrimary
                 )
             }
 
@@ -524,7 +533,8 @@ private fun EmailInputStepContent(
                 onClick = {
                     val targetMode = if (isSignInMode) AuthEntryMode.LOG_IN else AuthEntryMode.SIGN_IN
                     onSwitchAuthMode(targetMode)
-                }
+                },
+                modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
             ) {
                 Text(
                     text = if (isSignInMode) {
@@ -534,7 +544,7 @@ private fun EmailInputStepContent(
                     },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = AuthVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -552,7 +562,7 @@ private fun AuthModeTabItem(
         modifier = modifier
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) AuthVolt else Color.Transparent)
+            .background(if (isSelected) VoltAccent else Color.Transparent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -560,7 +570,7 @@ private fun AuthModeTabItem(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) OnVolt else AuthMuted
+            color = if (isSelected) OnVolt else TextMuted
         )
     }
 }
@@ -585,7 +595,12 @@ private fun OtpVerificationStepContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthScreenBg)
+            .background(AppBackground)
+            .iosEdgeSwipeBack(onBack = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                onBackToEmailInput()
+            })
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .dismissKeyboardOnTap()
             .verticalScroll(scrollState)
@@ -597,22 +612,23 @@ private fun OtpVerificationStepContent(
         ) {
             Box(
                 modifier = Modifier
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(AuthCardBg)
-                    .border(1.dp, AuthBorder, RoundedCornerShape(50))
+                    .background(CardSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(50))
                     .clickable {
                         focusManager.clearFocus()
                         keyboardController?.hide()
                         onBackToEmailInput()
                     }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Change Email",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -623,7 +639,7 @@ private fun OtpVerificationStepContent(
             text = "Verify Email",
             fontSize = 30.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = AuthWhite
+            color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -631,7 +647,7 @@ private fun OtpVerificationStepContent(
         Text(
             text = pendingEmail,
             fontSize = 14.sp,
-            color = AuthMuted
+            color = TextMuted
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -639,8 +655,8 @@ private fun OtpVerificationStepContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
-            border = BorderStroke(1.dp, AuthBorder)
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, CardBorder)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -678,10 +694,10 @@ private fun OtpVerificationStepContent(
                         .height(54.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AuthVolt,
+                        containerColor = VoltAccent,
                         contentColor = OnVolt,
-                        disabledContainerColor = AuthInputBg,
-                        disabledContentColor = AuthMuted
+                        disabledContainerColor = InputSurface,
+                        disabledContentColor = TextMuted
                     )
                 ) {
                     Text(
@@ -695,7 +711,8 @@ private fun OtpVerificationStepContent(
 
                 TextButton(
                     onClick = onResendCode,
-                    enabled = resendCountdownSeconds <= 0
+                    enabled = resendCountdownSeconds <= 0,
+                    modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                 ) {
                     val resendLabel = if (resendCountdownSeconds > 0) {
                         "Resend in ${resendCountdownSeconds}s"
@@ -705,8 +722,9 @@ private fun OtpVerificationStepContent(
                     Text(
                         text = resendLabel,
                         fontSize = 13.sp,
+                        fontFamily = if (resendCountdownSeconds > 0) FontFamily.Monospace else FontFamily.SansSerif,
                         fontWeight = FontWeight.Bold,
-                        color = if (resendCountdownSeconds > 0) AuthMuted else AuthVolt
+                        color = if (resendCountdownSeconds > 0) TextMuted else VoltAccent
                     )
                 }
             }
@@ -738,7 +756,7 @@ fun SixDigitOtpInputField(
                 keyboardController?.hide()
             }
         ),
-        cursorBrush = SolidColor(AuthVolt),
+        cursorBrush = SolidColor(VoltAccent),
         decorationBox = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -752,10 +770,10 @@ fun SixDigitOtpInputField(
                             .weight(1f)
                             .height(54.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(AuthInputBg)
+                            .background(InputSurface)
                             .border(
                                 width = 1.dp,
-                                color = if (isFocusedIndex) AuthVolt else AuthBorder,
+                                color = if (isFocusedIndex) VoltAccent else CardBorder,
                                 shape = RoundedCornerShape(14.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -766,7 +784,7 @@ fun SixDigitOtpInputField(
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp,
-                                color = AuthWhite
+                                color = TextPrimary
                             )
                         )
                     }
@@ -788,7 +806,7 @@ private fun GoogleSignInButton(
             .height(54.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = AuthWhite,
+            containerColor = TextPrimary,
             contentColor = OnVolt
         )
     ) {
@@ -852,7 +870,7 @@ fun ProfileSetupScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthScreenBg)
+            .background(AppBackground)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .dismissKeyboardOnTap()
             .verticalScroll(scrollState)
@@ -863,7 +881,7 @@ fun ProfileSetupScreen(
             text = "Profile Setup",
             fontSize = 30.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = AuthWhite
+            color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -871,7 +889,7 @@ fun ProfileSetupScreen(
         Text(
             text = "Personalize your metrics for accurate calorie and strength calculations.",
             fontSize = 14.sp,
-            color = AuthMuted
+            color = TextMuted
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -879,8 +897,8 @@ fun ProfileSetupScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = AuthCardBg),
-            border = BorderStroke(1.dp, AuthBorder)
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, CardBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 FieldLabel(text = "Name")
@@ -888,7 +906,7 @@ fun ProfileSetupScreen(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "Name", color = AuthMuted) },
+                    placeholder = { Text(text = "Name", color = TextMuted) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
@@ -912,8 +930,8 @@ fun ProfileSetupScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(AuthVolt.copy(alpha = 0.16f))
-                            .border(1.dp, AuthVolt.copy(alpha = 0.4f), RoundedCornerShape(50))
+                            .background(VoltAccent.copy(alpha = 0.16f))
+                            .border(1.dp, VoltAccent.copy(alpha = 0.4f), RoundedCornerShape(50))
                             .padding(horizontal = 10.dp, vertical = 3.dp)
                     ) {
                         Text(
@@ -921,7 +939,7 @@ fun ProfileSetupScreen(
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = AuthVolt
+                            color = VoltAccent
                         )
                     }
                 }
@@ -932,18 +950,23 @@ fun ProfileSetupScreen(
                     value = birthDateText,
                     onValueChange = { birthDateText = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "YYYY-MM-DD", color = AuthMuted) },
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        color = TextPrimary
+                    ),
+                    placeholder = { Text(text = "YYYY-MM-DD", color = TextMuted) },
                     trailingIcon = {
                         TextButton(
                             onClick = {
                                 focusManager.clearFocus()
                                 keyboardController?.hide()
                                 showDatePicker = true
-                            }
+                            },
+                            modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                         ) {
                             Text(
                                 text = "Pick",
-                                color = AuthVolt,
+                                color = VoltAccent,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -1011,10 +1034,10 @@ fun ProfileSetupScreen(
                 .height(56.dp),
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = AuthVolt,
+                containerColor = VoltAccent,
                 contentColor = OnVolt,
-                disabledContainerColor = AuthInputBg,
-                disabledContentColor = AuthMuted
+                disabledContainerColor = InputSurface,
+                disabledContentColor = TextMuted
             )
         ) {
             Text(
@@ -1040,14 +1063,18 @@ fun ProfileSetupScreen(
                             birthDateText = epochMillisToIsoDateUtc(selectedMillis)
                         }
                         showDatePicker = false
-                    }
+                    },
+                    modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                 ) {
-                    Text(text = "Confirm", color = AuthVolt)
+                    Text(text = "Confirm", color = VoltAccent)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(text = "Cancel", color = AuthMuted)
+                TextButton(
+                    onClick = { showDatePicker = false },
+                    modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                ) {
+                    Text(text = "Cancel", color = TextMuted)
                 }
             }
         ) {
@@ -1081,7 +1108,7 @@ private fun MetricStepperColumn(
                     text = "Done",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthVolt,
+                    color = VoltAccent,
                     modifier = Modifier.clickable {
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -1093,19 +1120,19 @@ private fun MetricStepperColumn(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(54.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(AuthInputBg)
-                .border(1.dp, AuthBorder, RoundedCornerShape(16.dp))
-                .padding(horizontal = 6.dp),
+                .background(InputSurface)
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                .padding(horizontal = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AuthCardBg)
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardSurface)
                     .clickable(onClick = onDecrement),
                 contentAlignment = Alignment.Center
             ) {
@@ -1113,7 +1140,7 @@ private fun MetricStepperColumn(
                     text = "-",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthWhite
+                    color = TextPrimary
                 )
             }
 
@@ -1131,12 +1158,12 @@ private fun MetricStepperColumn(
                         keyboardController?.hide()
                     }
                 ),
-                cursorBrush = SolidColor(AuthVolt),
+                cursorBrush = SolidColor(VoltAccent),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = AuthWhite,
+                    color = TextPrimary,
                     textAlign = TextAlign.Center
                 ),
                 modifier = Modifier
@@ -1146,9 +1173,9 @@ private fun MetricStepperColumn(
 
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AuthCardBg)
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardSurface)
                     .clickable(onClick = onIncrement),
                 contentAlignment = Alignment.Center
             ) {
@@ -1156,7 +1183,7 @@ private fun MetricStepperColumn(
                     text = "+",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -1169,17 +1196,17 @@ private fun FieldLabel(text: String) {
         text = text,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
-        color = AuthMuted
+        color = TextMuted
     )
 }
 
 @Composable
 private fun bentoTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = AuthWhite,
-    unfocusedTextColor = AuthWhite,
-    focusedContainerColor = AuthInputBg,
-    unfocusedContainerColor = AuthInputBg,
-    focusedBorderColor = AuthVolt,
-    unfocusedBorderColor = AuthBorder,
-    cursorColor = AuthVolt
+    focusedTextColor = TextPrimary,
+    unfocusedTextColor = TextPrimary,
+    focusedContainerColor = InputSurface,
+    unfocusedContainerColor = InputSurface,
+    focusedBorderColor = VoltAccent,
+    unfocusedBorderColor = CardBorder,
+    cursorColor = VoltAccent
 )

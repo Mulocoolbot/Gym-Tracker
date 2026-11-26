@@ -61,7 +61,6 @@ internal fun ensureIosNotificationDelegateInstalled() {
 
 internal fun requestIosNotificationAuthorization() {
     ensureIosNotificationDelegateInstalled()
-    // Request alert, sound, and badge permissions for background rest timer and OTP delivery.
     val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
     UNUserNotificationCenter.currentNotificationCenter()
         .requestAuthorizationWithOptions(options) { _, _ -> }

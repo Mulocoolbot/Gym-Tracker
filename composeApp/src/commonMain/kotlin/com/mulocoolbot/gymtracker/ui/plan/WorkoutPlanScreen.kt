@@ -8,12 +8,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,13 +43,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mulocoolbot.gymtracker.data.local.WorkoutPlanEntity
+import com.mulocoolbot.gymtracker.platform.iosEdgeSwipeBack
 import com.mulocoolbot.gymtracker.ui.components.CalendarPlanIcon
 import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.SdCardSaveIcon
@@ -156,88 +161,99 @@ fun WorkoutPlanScreen(
 private fun EmptyWorkoutPlanContent(
     onStartCreateOrEditPlan: () -> Unit
 ) {
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .background(AppBackground)
     ) {
-        WorkoutPlanMainHeader(onStartCreateOrEditPlan = onStartCreateOrEditPlan)
-
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
+                .heightIn(min = maxHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = BorderStroke(1.dp, CardBorder)
+            WorkoutPlanMainHeader(onStartCreateOrEditPlan = onStartCreateOrEditPlan)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardSurface),
+                    border = BorderStroke(1.dp, CardBorder)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(InputSurface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(20.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CalendarPlanIcon,
-                            contentDescription = "No Workout Plan",
-                            tint = VoltAccent,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Text(
-                        text = "No Workout Plan",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "You haven't set up a weekly training schedule yet.",
-                        fontSize = 13.sp,
-                        color = TextMuted,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = onStartCreateOrEditPlan,
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
-                            .tutorialTarget(TutorialTargetId.PLAN_CREATE_AREA),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = VoltAccent,
-                            contentColor = OnVolt
-                        )
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(InputSurface)
+                                .border(1.dp, CardBorder, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CalendarPlanIcon,
+                                contentDescription = "No Workout Plan",
+                                tint = VoltAccent,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
                         Text(
-                            text = "+ Create Workout Plan",
-                            fontSize = 15.sp,
+                            text = "No Workout Plan",
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = OnVolt
+                            color = TextPrimary
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "You haven't set up a weekly training schedule yet.",
+                            fontSize = 13.sp,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Button(
+                            onClick = onStartCreateOrEditPlan,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .tutorialTarget(TutorialTargetId.PLAN_CREATE_AREA),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VoltAccent,
+                                contentColor = OnVolt
+                            )
+                        ) {
+                            Text(
+                                text = "+ Create Workout Plan",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = OnVolt
+                            )
+                        }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(1.dp))
         }
     }
 }
@@ -322,7 +338,7 @@ private fun SavedDayPlanCard(dayPlan: WorkoutPlanEntity) {
     val subtitleText = if (isActive) dayPlan.planName else "Rest Day"
     val subtitleColor = if (isActive) VoltAccent else TextMuted
     val statusText = if (isActive) "Active" else "Rest"
-    val statusBg = if (isActive) Color(0x22D4FF00) else InputSurface
+    val statusBg = if (isActive) VoltAccent.copy(alpha = 0.13f) else InputSurface
     val statusTextColor = if (isActive) VoltAccent else TextMuted
 
     Card(
@@ -404,6 +420,7 @@ private fun SelectDaysSubPageContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .iosEdgeSwipeBack(onBack = onRequestCancel)
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Row(
@@ -415,6 +432,7 @@ private fun SelectDaysSubPageContent(
                 Text(
                     text = "WORKOUT PLAN · PAGE 1 OF 2",
                     fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
                     color = VoltAccent
@@ -430,11 +448,13 @@ private fun SelectDaysSubPageContent(
 
             Box(
                 modifier = Modifier
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .clip(RoundedCornerShape(50))
                     .background(CardSurface)
                     .border(1.dp, CardBorder, RoundedCornerShape(50))
                     .clickable(onClick = onRequestCancel)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Cancel",
@@ -467,6 +487,7 @@ private fun SelectDaysSubPageContent(
                 Text(
                     text = "${selectedDays.size} Selected",
                     fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = VoltAccent
                 )
@@ -662,6 +683,7 @@ private fun InputPlanSubPageContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .iosEdgeSwipeBack(onBack = { dismissAndRun(onGoToEditDaysPage) })
             .imePadding()
             .dismissKeyboardOnTap()
             .padding(horizontal = 20.dp, vertical = 20.dp)
@@ -675,6 +697,7 @@ private fun InputPlanSubPageContent(
                 Text(
                     text = "WORKOUT PLAN · PAGE 2 OF 2",
                     fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
                     color = VoltAccent
@@ -694,11 +717,13 @@ private fun InputPlanSubPageContent(
             ) {
                 Box(
                     modifier = Modifier
+                        .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                         .clip(RoundedCornerShape(50))
                         .background(CardSurface)
                         .border(1.dp, CardBorder, RoundedCornerShape(50))
                         .clickable { dismissAndRun(onRequestCancel) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Cancel",
@@ -710,10 +735,11 @@ private fun InputPlanSubPageContent(
 
                 Row(
                     modifier = Modifier
+                        .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                         .clip(RoundedCornerShape(50))
                         .background(VoltAccent)
                         .clickable { dismissAndRun(onSaveWorkoutPlan) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -748,11 +774,13 @@ private fun InputPlanSubPageContent(
 
             Box(
                 modifier = Modifier
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .clip(RoundedCornerShape(50))
                     .background(InputSurface)
                     .border(1.dp, CardBorder, RoundedCornerShape(50))
                     .clickable { dismissAndRun(onGoToEditDaysPage) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Edit Days",
@@ -944,6 +972,7 @@ private fun DayPlanInputCard(
                     val isSelectedPreset = currentValue.trim().equals(preset, ignoreCase = true)
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                             .clip(RoundedCornerShape(50))
                             .background(if (isSelectedPreset) VoltAccent else InputSurface)
                             .border(
@@ -956,7 +985,8 @@ private fun DayPlanInputCard(
                                 keyboardController?.hide()
                                 onValueChange(preset)
                             }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = preset,

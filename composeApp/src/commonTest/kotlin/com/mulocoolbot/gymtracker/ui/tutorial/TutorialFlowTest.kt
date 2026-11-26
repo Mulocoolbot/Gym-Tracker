@@ -1,5 +1,6 @@
 package com.mulocoolbot.gymtracker.ui.tutorial
 
+import androidx.compose.ui.geometry.Rect
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.mulocoolbot.gymtracker.data.auth.AuthEntryMode
 import com.mulocoolbot.gymtracker.data.auth.SessionPreferences
@@ -170,5 +171,52 @@ class TutorialFlowTest {
         )
         assertEquals(listOf("1/5", "2/5", "3/5", "4/5", "5/5"), MFitTutorialSteps.map { it.indicatorText })
         assertEquals(listOf(false, false, false, false, true), MFitTutorialSteps.map { it.isLastStep })
+    }
+
+    @Test
+    fun tutorialOverlayLayout_neverOverlapsSpotlight_onIphoneSeAndDynamicIsland() {
+        val scenarios = listOf(
+            // iPhone SE (compact screen) with tall mid-screen target and tall card
+            Triple("iPhone SE tall mid target", floatArrayOf(375f, 667f, 20f, 0f), Rect(40f, 220f, 335f, 430f)),
+            // iPhone 15/16 Pro Dynamic Island with top-edge target
+            Triple("Dynamic Island top target", floatArrayOf(393f, 852f, 59f, 34f), Rect(20f, 30f, 373f, 210f)),
+            // iPhone 15/16 Pro Dynamic Island with bottom target near home indicator
+            Triple("Dynamic Island bottom target", floatArrayOf(393f, 852f, 59f, 34f), Rect(20f, 620f, 373f, 780f))
+        )
+
+        scenarios.forEach { (label, metrics, target) ->
+            val width = metrics[0]
+            val height = metrics[1]
+            val topInset = metrics[2]
+            val bottomInset = metrics[3]
+            val cardHeight = 230f
+
+            val layout = computeTutorialOverlayLayout(
+                containerWidth = width,
+                containerHeight = height,
+                targetRect = target,
+                cardHeightPx = cardHeight,
+                topSafeInsetPx = topInset,
+                bottomSafeInsetPx = bottomInset,
+                padPx = 6f,
+                maxCornerPx = 28f,
+                connectorGapPx = 20f,
+                edgeMarginPx = 14f,
+                cardHorizontalMarginPx = 20f,
+                cardAnchorInsetPx = 28f,
+                minConnectorGapPx = 4f
+            )
+
+            assertTrue(layout.hasSpotlight, "$label missing spotlight")
+            assertTrue(layout.spotlightRect.top >= topInset, "$label spotlight clipped into safe area")
+            assertTrue(layout.cardTopPx >= topInset + 14f - 0.5f, "$label card clipped top")
+            assertTrue(layout.cardTopPx + cardHeight <= height - bottomInset - 14f + 0.5f, "$label card clipped bottom")
+
+            val cardRect = Rect(layout.cardLeftPx, layout.cardTopPx, layout.cardRightPx, layout.cardTopPx + cardHeight)
+            assertFalse(
+                cardRect.overlaps(layout.spotlightRect),
+                "$label card $cardRect overlapped spotlight ${layout.spotlightRect}"
+            )
+        }
     }
 }

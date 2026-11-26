@@ -110,7 +110,7 @@ private fun StandardTabItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) Color(0xFF232733) else Color.Transparent
+    val backgroundColor = if (isSelected) CardBorder else Color.Transparent
     val iconTint = if (isSelected) VoltAccent else TextMuted
 
     Box(

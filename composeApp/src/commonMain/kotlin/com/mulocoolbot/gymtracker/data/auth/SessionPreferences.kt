@@ -147,55 +147,28 @@ class SessionPreferences(
         email: String,
         entryMode: AuthEntryMode = AuthEntryMode.SIGN_IN
     ) {
-        val normalizedEmail = email.trim()
-        val lowerEmail = normalizeEmail(normalizedEmail)
-        if (normalizedEmail.isEmpty()) return
-
-        dataStore.edit { prefs ->
-            val currentUid = prefs[KEY_UID].orEmpty()
-            val isCurrentlyAuthenticated = (prefs[KEY_IS_GOOGLE_LINKED] ?: false) ||
-                (prefs[KEY_IS_EMAIL_LINKED] ?: false) ||
-                (prefs[KEY_IS_OFFLINE_MODE] ?: false)
-            val existingEmails = extractRegisteredEmails(prefs)
-            val wasRegistered = lowerEmail in existingEmails
-            val registeredGoogle = prefs[KEY_REGISTERED_GOOGLE_EMAIL]
-            val registeredUid = prefs[KEY_REGISTERED_UID].orEmpty()
-
-            val resolvedUid = when {
-                isCurrentlyAuthenticated && currentUid.isNotBlank() -> currentUid
-                registeredGoogle?.equals(normalizedEmail, ignoreCase = true) == true &&
-                    registeredUid.isNotBlank() -> registeredUid
-                else -> generateUid(normalizedEmail)
-            }
-
-            prefs[KEY_UID] = resolvedUid
-            prefs[KEY_REGISTERED_UID] = resolvedUid
-            prefs[KEY_GOOGLE_EMAIL] = normalizedEmail
-            prefs[KEY_REGISTERED_GOOGLE_EMAIL] = lowerEmail
-            prefs[KEY_REGISTERED_EMAILS] = existingEmails + lowerEmail
-            prefs[KEY_IS_GOOGLE_LINKED] = true
-
-            if (entryMode == AuthEntryMode.LOG_IN && wasRegistered) {
-                prefs[KEY_IS_PROFILE_COMPLETED] = true
-            } else if (!isCurrentlyAuthenticated && !wasRegistered) {
-                prefs[KEY_IS_PROFILE_COMPLETED] = false
-            }
-
-            if (!isCurrentlyAuthenticated) {
-                val hasCompleted = prefs[KEY_HAS_COMPLETED_TUTORIAL] ?: false
-                prefs[KEY_SHOULD_SHOW_TUTORIAL] =
-                    entryMode == AuthEntryMode.SIGN_IN && !wasRegistered && !hasCompleted
-            }
-        }
+        signInWithProvider(email = email, entryMode = entryMode, isGoogle = true)
     }
 
     suspend fun signInWithEmail(
         email: String,
         entryMode: AuthEntryMode = AuthEntryMode.SIGN_IN
     ) {
+        signInWithProvider(email = email, entryMode = entryMode, isGoogle = false)
+    }
+
+    private suspend fun signInWithProvider(
+        email: String,
+        entryMode: AuthEntryMode,
+        isGoogle: Boolean
+    ) {
         val normalizedEmail = email.trim()
         val lowerEmail = normalizeEmail(normalizedEmail)
         if (normalizedEmail.isEmpty()) return
+
+        val activeKey = if (isGoogle) KEY_GOOGLE_EMAIL else KEY_USER_EMAIL
+        val registeredKey = if (isGoogle) KEY_REGISTERED_GOOGLE_EMAIL else KEY_REGISTERED_EMAIL
+        val linkedKey = if (isGoogle) KEY_IS_GOOGLE_LINKED else KEY_IS_EMAIL_LINKED
 
         dataStore.edit { prefs ->
             val currentUid = prefs[KEY_UID].orEmpty()
@@ -204,22 +177,22 @@ class SessionPreferences(
                 (prefs[KEY_IS_OFFLINE_MODE] ?: false)
             val existingEmails = extractRegisteredEmails(prefs)
             val wasRegistered = lowerEmail in existingEmails
-            val registeredEmail = prefs[KEY_REGISTERED_EMAIL]
+            val registeredProviderEmail = prefs[registeredKey]
             val registeredUid = prefs[KEY_REGISTERED_UID].orEmpty()
 
             val resolvedUid = when {
                 isCurrentlyAuthenticated && currentUid.isNotBlank() -> currentUid
-                registeredEmail?.equals(normalizedEmail, ignoreCase = true) == true &&
+                registeredProviderEmail?.equals(normalizedEmail, ignoreCase = true) == true &&
                     registeredUid.isNotBlank() -> registeredUid
                 else -> generateUid(normalizedEmail)
             }
 
             prefs[KEY_UID] = resolvedUid
             prefs[KEY_REGISTERED_UID] = resolvedUid
-            prefs[KEY_USER_EMAIL] = normalizedEmail
-            prefs[KEY_REGISTERED_EMAIL] = lowerEmail
+            prefs[activeKey] = normalizedEmail
+            prefs[registeredKey] = lowerEmail
             prefs[KEY_REGISTERED_EMAILS] = existingEmails + lowerEmail
-            prefs[KEY_IS_EMAIL_LINKED] = true
+            prefs[linkedKey] = true
 
             if (entryMode == AuthEntryMode.LOG_IN && wasRegistered) {
                 prefs[KEY_IS_PROFILE_COMPLETED] = true

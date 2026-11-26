@@ -94,7 +94,7 @@ fun TutorialOverlay(
 
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     var overlayOffsetInRoot by remember { mutableStateOf(Offset.Zero) }
-    var cardHeightPx by remember { mutableStateOf(with(density) { 178.dp.toPx() }) }
+    var cardHeightPx by remember { mutableStateOf(with(density) { 172.dp.toPx() }) }
     var lastValidRect by remember { mutableStateOf<Rect?>(null) }
 
     val rawTarget = targetBounds[step.targetId]
@@ -162,101 +162,25 @@ fun TutorialOverlay(
                 }
             }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    compositingStrategy = CompositingStrategy.Offscreen
-                }
-                .drawWithContent {
-                    drawContent()
-                    if (targetLayout.hasSpotlight && animatedSpotlight.width > 2f && animatedSpotlight.height > 2f) {
-                        val corner = minOf(maxCornerPx, animatedSpotlight.width / 2f, animatedSpotlight.height / 2f)
-                        drawRoundRect(
-                            color = Color.Transparent,
-                            topLeft = animatedSpotlight.topLeft,
-                            size = animatedSpotlight.size,
-                            cornerRadius = CornerRadius(corner, corner),
-                            blendMode = BlendMode.Clear
-                        )
-                    }
-                }
-        ) {
-            if (backdropLayer != null) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(radius = 10.dp, edgeTreatment = BlurredEdgeTreatment.Rectangle)
-                ) {
-                    if (backdropLayer.size.width > 0 && backdropLayer.size.height > 0) {
-                        drawLayer(backdropLayer)
-                    }
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(scrimColor)
-            )
-        }
+        TutorialSpotlightBackdrop(
+            backdropLayer = backdropLayer,
+            scrimColor = scrimColor,
+            hasSpotlight = targetLayout.hasSpotlight,
+            spotlight = animatedSpotlight,
+            maxCornerPx = maxCornerPx
+        )
 
         if (targetLayout.hasSpotlight && animatedSpotlight.width > 2f && animatedSpotlight.height > 2f) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val corner = minOf(maxCornerPx, animatedSpotlight.width / 2f, animatedSpotlight.height / 2f)
-                drawRoundRect(
-                    color = VoltAccent,
-                    topLeft = animatedSpotlight.topLeft,
-                    size = animatedSpotlight.size,
-                    cornerRadius = CornerRadius(corner, corner),
-                    style = Stroke(width = 2.dp.toPx())
-                )
-
-                val cardLeft = cardHorizontalMarginPx
-                val cardRight = (size.width - cardHorizontalMarginPx).coerceAtLeast(cardLeft + 1f)
-                val anchorX = animatedSpotlight.center.x.coerceIn(
-                    (cardLeft + cardAnchorInsetPx).coerceAtMost(cardRight),
-                    (cardRight - cardAnchorInsetPx).coerceAtLeast(cardLeft)
-                )
-
-                val ringAnchor = if (targetLayout.placeCardBelow) {
-                    Offset(animatedSpotlight.center.x, animatedSpotlight.bottom)
-                } else {
-                    Offset(animatedSpotlight.center.x, animatedSpotlight.top)
-                }
-
-                val cardAnchor = if (targetLayout.placeCardBelow) {
-                    Offset(anchorX, animatedCardTop)
-                } else {
-                    Offset(anchorX, animatedCardTop + cardHeightPx)
-                }
-
-                val signedGap = if (targetLayout.placeCardBelow) {
-                    cardAnchor.y - ringAnchor.y
-                } else {
-                    ringAnchor.y - cardAnchor.y
-                }
-
-                if (signedGap >= minConnectorGapPx) {
-                    drawLine(
-                        color = VoltAccent,
-                        start = cardAnchor,
-                        end = ringAnchor,
-                        strokeWidth = 1.75.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                    drawCircle(
-                        color = VoltAccent,
-                        radius = 3.5.dp.toPx(),
-                        center = ringAnchor
-                    )
-                    drawCircle(
-                        color = VoltAccent,
-                        radius = 2.5.dp.toPx(),
-                        center = cardAnchor
-                    )
-                }
-            }
+            TutorialSpotlightRingAndConnector(
+                spotlight = animatedSpotlight,
+                maxCornerPx = maxCornerPx,
+                placeCardBelow = targetLayout.placeCardBelow,
+                cardTopPx = animatedCardTop,
+                cardHeightPx = cardHeightPx,
+                cardHorizontalMarginPx = cardHorizontalMarginPx,
+                cardAnchorInsetPx = cardAnchorInsetPx,
+                minConnectorGapPx = minConnectorGapPx
+            )
         }
 
         TutorialExplanationCard(
@@ -274,6 +198,111 @@ fun TutorialOverlay(
                     }
                 }
         )
+    }
+}
+
+@Composable
+private fun TutorialSpotlightBackdrop(
+    backdropLayer: GraphicsLayer?,
+    scrimColor: Color,
+    hasSpotlight: Boolean,
+    spotlight: Rect,
+    maxCornerPx: Float
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .drawWithContent {
+                drawContent()
+                if (hasSpotlight && spotlight.width > 2f && spotlight.height > 2f) {
+                    val corner = minOf(maxCornerPx, spotlight.width / 2f, spotlight.height / 2f)
+                    drawRoundRect(
+                        color = Color.Transparent,
+                        topLeft = spotlight.topLeft,
+                        size = spotlight.size,
+                        cornerRadius = CornerRadius(corner, corner),
+                        blendMode = BlendMode.Clear
+                    )
+                }
+            }
+    ) {
+        if (backdropLayer != null) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(radius = 10.dp, edgeTreatment = BlurredEdgeTreatment.Rectangle)
+            ) {
+                if (backdropLayer.size.width > 0 && backdropLayer.size.height > 0) {
+                    drawLayer(backdropLayer)
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(scrimColor)
+        )
+    }
+}
+
+@Composable
+private fun TutorialSpotlightRingAndConnector(
+    spotlight: Rect,
+    maxCornerPx: Float,
+    placeCardBelow: Boolean,
+    cardTopPx: Float,
+    cardHeightPx: Float,
+    cardHorizontalMarginPx: Float,
+    cardAnchorInsetPx: Float,
+    minConnectorGapPx: Float
+) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val corner = minOf(maxCornerPx, spotlight.width / 2f, spotlight.height / 2f)
+        drawRoundRect(
+            color = VoltAccent,
+            topLeft = spotlight.topLeft,
+            size = spotlight.size,
+            cornerRadius = CornerRadius(corner, corner),
+            style = Stroke(width = 2.dp.toPx())
+        )
+
+        val cardLeft = cardHorizontalMarginPx
+        val cardRight = (size.width - cardHorizontalMarginPx).coerceAtLeast(cardLeft + 1f)
+        val connector = computeTutorialConnector(
+            spotlightRect = spotlight,
+            hasSpotlight = true,
+            placeCardBelow = placeCardBelow,
+            cardTopPx = cardTopPx,
+            cardHeightPx = cardHeightPx,
+            cardLeftPx = cardLeft,
+            cardRightPx = cardRight,
+            cardAnchorInsetPx = cardAnchorInsetPx,
+            minConnectorGapPx = minConnectorGapPx
+        )
+
+        if (connector.showConnector) {
+            drawLine(
+                color = VoltAccent,
+                start = connector.cardAnchor,
+                end = connector.ringAnchor,
+                strokeWidth = 1.75.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawCircle(
+                color = VoltAccent,
+                radius = 3.5.dp.toPx(),
+                center = connector.ringAnchor
+            )
+            drawCircle(
+                color = VoltAccent,
+                radius = 2.5.dp.toPx(),
+                center = connector.cardAnchor
+            )
+        }
     }
 }
 
@@ -296,7 +325,7 @@ private fun TutorialExplanationCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp)
+                .padding(16.dp)
         ) {
             AnimatedContent(
                 targetState = step,
@@ -352,7 +381,7 @@ private fun TutorialExplanationCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (uiState.showDoneButton) {
                 Button(

@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         registerPlatformBindings()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#101217")
+        window.navigationBarColor = Color.parseColor("#0B0C0E")
         applyFullScreenMode()
 
         setContent {

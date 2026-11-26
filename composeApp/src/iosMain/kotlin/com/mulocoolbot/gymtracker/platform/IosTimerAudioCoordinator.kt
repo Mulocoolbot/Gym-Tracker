@@ -84,7 +84,6 @@ internal class IosTimerAudioCoordinator(
 
         if (isSessionActive) {
             isSessionActive = false
-            // NotifyOthersOnDeactivation restores background music to normal volume.
             val deactivated = AVAudioSession.sharedInstance().setActive(
                 false,
                 withOptions = AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation,

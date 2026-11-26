@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
@@ -55,6 +56,7 @@ import androidx.navigation.compose.rememberNavController
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.platform.PlatformPermissionsRequester
 import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
+import com.mulocoolbot.gymtracker.platform.iosEdgeSwipeBack
 import com.mulocoolbot.gymtracker.platform.rememberNotificationPermissionRequester
 import com.mulocoolbot.gymtracker.platform.supportsTutorialBlur
 import com.mulocoolbot.gymtracker.timer.RestTimerController
@@ -277,7 +279,14 @@ private fun AuthenticatedMainContent(
                         NavHost(
                             navController = navController,
                             startDestination = BottomNavTab.HOME.route,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .iosEdgeSwipeBack(
+                                    enabled = !isTutorialActive &&
+                                        currentRoute != BottomNavTab.HOME.route &&
+                                        navController.previousBackStackEntry != null,
+                                    onBack = { navController.popBackStack() }
+                                ),
                             enterTransition = {
                                 fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 18 }
                             },
@@ -341,6 +350,7 @@ private fun AuthenticatedMainContent(
                                     onSelectSetType = workoutViewModel::selectSetType,
                                     onAddSet = {
                                         workoutViewModel.addSet { durationMillis, label ->
+                                            timerBridge.playSetCompletedHaptic()
                                             timerBridge.startBackgroundTimer(durationMillis, label)
                                         }
                                     },
@@ -463,6 +473,7 @@ private fun AlarmFinishedBanner(onDismiss: () -> Unit) {
 
             Button(
                 onClick = onDismiss,
+                modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = VoltAccent,

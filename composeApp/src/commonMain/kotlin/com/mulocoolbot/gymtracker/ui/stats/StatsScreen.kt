@@ -8,12 +8,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,23 +66,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mulocoolbot.gymtracker.ui.components.StatsBarIcon
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
+import com.mulocoolbot.gymtracker.ui.theme.CardBorder
+import com.mulocoolbot.gymtracker.ui.theme.CardSurface
 import com.mulocoolbot.gymtracker.ui.theme.DangerRed
+import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.SuccessGreen
+import com.mulocoolbot.gymtracker.ui.theme.TextMuted
+import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
 import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import kotlin.math.ceil
 import kotlin.math.hypot
-
-private val StatsCardBg = Color(0xFF14161B)
-private val StatsInnerBg = Color(0xFF1A1D24)
-private val StatsBorder = Color(0xFF232730)
-private val StatsVolt = Color(0xFFCCFF00)
-private val StatsMedVolt = Color(0xFF7A9900)
-private val StatsZeroMuscle = Color(0xFF232429)
-private val StatsWhite = Color(0xFFFFFFFF)
-private val StatsMuted = Color(0xFF8C92A4)
 
 @Composable
 fun StatsScreen(
@@ -113,100 +113,110 @@ fun StatsScreen(
 private fun EmptyStatisticsContent(
     onNavigateToLogWorkout: () -> Unit
 ) {
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        Text(
-            text = "Statistics",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = StatsWhite
-        )
-
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
+                .heightIn(min = maxHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = StatsCardBg),
-                border = BorderStroke(1.dp, StatsBorder)
+            Text(
+                text = "Statistics",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardSurface),
+                    border = BorderStroke(1.dp, CardBorder)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA),
+                            .padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .size(64.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(StatsInnerBg)
-                                .border(1.dp, StatsBorder, RoundedCornerShape(20.dp)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .tutorialTarget(TutorialTargetId.STATS_OVERVIEW_AREA),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = StatsBarIcon,
-                                contentDescription = "No Statistics Yet",
-                                tint = StatsVolt,
-                                modifier = Modifier.size(28.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(InputSurface)
+                                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = StatsBarIcon,
+                                    contentDescription = "No Statistics Yet",
+                                    tint = VoltAccent,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Text(
+                                text = "No Statistics Yet",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Complete your first workout session to unlock e1RM strength charts and your 2D muscle heatmap.",
+                                fontSize = 13.sp,
+                                color = TextMuted,
+                                textAlign = TextAlign.Center
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
-                        Text(
-                            text = "No Statistics Yet",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = StatsWhite
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Complete your first workout session to unlock e1RM strength charts and your 2D muscle heatmap.",
-                            fontSize = 13.sp,
-                            color = StatsMuted,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = onNavigateToLogWorkout,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = StatsVolt,
-                            contentColor = OnVolt
-                        )
-                    ) {
-                        Text(
-                            text = "+ Log Workout",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = OnVolt
-                        )
+                        Button(
+                            onClick = onNavigateToLogWorkout,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VoltAccent,
+                                contentColor = OnVolt
+                            )
+                        ) {
+                            Text(
+                                text = "+ Log Workout",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = OnVolt
+                            )
+                        }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(1.dp))
         }
     }
 }
@@ -232,7 +242,7 @@ private fun PopulatedStatisticsContent(
             text = "Statistics",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = StatsWhite
+            color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -277,8 +287,8 @@ private fun StrengthProgressBentoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = StatsCardBg),
-        border = BorderStroke(1.dp, StatsBorder)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(
             modifier = Modifier
@@ -300,7 +310,7 @@ private fun StrengthProgressBentoCard(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
-                        color = StatsMuted
+                        color = TextMuted
                     )
 
                     Box(
@@ -326,13 +336,14 @@ private fun StrengthProgressBentoCard(
                         .fillMaxWidth()
                         .onSizeChanged { dropdownAnchorWidthPx = it.width }
                 ) {
-                    val dropdownBorderColor = if (uiState.isExerciseDropdownOpen) StatsVolt else StatsBorder
+                    val dropdownBorderColor = if (uiState.isExerciseDropdownOpen) VoltAccent else CardBorder
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(StatsInnerBg)
+                            .background(InputSurface)
                             .border(1.dp, dropdownBorderColor, RoundedCornerShape(16.dp))
                             .clickable(onClick = onToggleExerciseDropdown)
                             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -348,29 +359,29 @@ private fun StrengthProgressBentoCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(StatsVolt)
+                                    .background(VoltAccent)
                             )
 
                             Text(
                                 text = activeOption?.exerciseName ?: uiState.selectedExerciseName.ifEmpty { "Select Exercise" },
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = StatsWhite
+                                color = TextPrimary
                             )
 
                             if (activeOption != null) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(StatsCardBg)
-                                        .border(1.dp, StatsBorder, RoundedCornerShape(8.dp))
+                                        .background(CardSurface)
+                                        .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
                                         .padding(horizontal = 8.dp, vertical = 3.dp)
                                 ) {
                                     Text(
                                         text = activeOption.muscleGroup,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = StatsVolt
+                                        color = VoltAccent
                                     )
                                 }
                             }
@@ -385,8 +396,8 @@ private fun StrengthProgressBentoCard(
                         onDismissRequest = onDismissExerciseDropdown,
                         modifier = Modifier
                             .let { if (dropdownAnchorWidthPx > 0) it.width(menuWidth) else it }
-                            .background(StatsInnerBg)
-                            .border(1.dp, StatsVolt, RoundedCornerShape(16.dp))
+                            .background(InputSurface)
+                            .border(1.dp, VoltAccent, RoundedCornerShape(16.dp))
                     ) {
                         uiState.exerciseOptions.forEach { option ->
                             val isSelected = option.exerciseName == uiState.selectedExerciseName
@@ -403,13 +414,14 @@ private fun StrengthProgressBentoCard(
                                                 text = option.exerciseName,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) StatsVolt else StatsWhite
+                                                color = if (isSelected) VoltAccent else TextPrimary
                                             )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "${option.muscleGroup} · Best ${formatCompactNumber(option.bestE1rm)} kg",
                                                 fontSize = 11.sp,
-                                                color = StatsMuted
+                                                fontFamily = FontFamily.Monospace,
+                                                color = TextMuted
                                             )
                                         }
 
@@ -422,7 +434,7 @@ private fun StrengthProgressBentoCard(
                                                 }
                                                 drawPath(
                                                     path = checkPath,
-                                                    color = StatsVolt,
+                                                    color = VoltAccent,
                                                     style = Stroke(
                                                         width = 2.dp.toPx(),
                                                         cap = StrokeCap.Round,
@@ -446,8 +458,8 @@ private fun StrengthProgressBentoCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(StatsInnerBg)
-                        .border(1.dp, StatsBorder, RoundedCornerShape(16.dp))
+                        .background(InputSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                         .padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -458,14 +470,15 @@ private fun StrengthProgressBentoCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp,
-                            color = StatsMuted
+                            color = TextMuted
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = activePoint.setSummary,
                             fontSize = 15.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = StatsWhite
+                            color = TextPrimary
                         )
                     }
 
@@ -475,7 +488,7 @@ private fun StrengthProgressBentoCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp,
-                            color = StatsMuted
+                            color = TextMuted
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -483,7 +496,7 @@ private fun StrengthProgressBentoCard(
                             fontSize = 18.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = StatsVolt
+                            color = VoltAccent
                         )
                     }
                 }
@@ -497,7 +510,7 @@ private fun StrengthProgressBentoCard(
                     .height(220.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(AppBackground)
-                    .border(1.dp, StatsBorder, RoundedCornerShape(16.dp))
+                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                     .padding(12.dp)
             ) {
                 InteractiveE1rmLineChart(
@@ -526,7 +539,7 @@ private fun ChevronIndicator(isExpanded: Boolean) {
         }
         drawPath(
             path = path,
-            color = StatsMuted,
+            color = TextMuted,
             style = Stroke(
                 width = 2.dp.toPx(),
                 cap = StrokeCap.Round,
@@ -551,7 +564,7 @@ private fun InteractiveE1rmLineChart(
 
     val valueLabelStyle = remember {
         TextStyle(
-            color = StatsWhite,
+            color = TextPrimary,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Medium
@@ -559,7 +572,7 @@ private fun InteractiveE1rmLineChart(
     }
     val axisLabelStyle = remember {
         TextStyle(
-            color = StatsMuted,
+            color = TextMuted,
             fontSize = 10.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Normal
@@ -598,7 +611,7 @@ private fun InteractiveE1rmLineChart(
         for (lineIndex in 0..3) {
             val y = topPadPx + (chartHeight / 3f) * lineIndex
             drawLine(
-                color = StatsBorder,
+                color = CardBorder,
                 start = Offset(horizontalPadPx, y),
                 end = Offset(size.width - horizontalPadPx, y),
                 strokeWidth = 1.dp.toPx(),
@@ -627,7 +640,7 @@ private fun InteractiveE1rmLineChart(
             drawPath(
                 path = fillPath,
                 brush = Brush.verticalGradient(
-                    colors = listOf(StatsVolt.copy(alpha = 0.28f), Color.Transparent),
+                    colors = listOf(VoltAccent.copy(alpha = 0.28f), Color.Transparent),
                     startY = topPadPx,
                     endY = topPadPx + chartHeight
                 )
@@ -639,7 +652,7 @@ private fun InteractiveE1rmLineChart(
             }
             drawPath(
                 path = linePath,
-                color = StatsVolt,
+                color = VoltAccent,
                 style = Stroke(
                     width = 2.5.dp.toPx(),
                     cap = StrokeCap.Round,
@@ -659,7 +672,7 @@ private fun InteractiveE1rmLineChart(
             val isSelected = index == selectedPointIndex
             if (isSelected) {
                 drawCircle(
-                    color = StatsVolt.copy(alpha = 0.28f),
+                    color = VoltAccent.copy(alpha = 0.28f),
                     radius = 11.dp.toPx(),
                     center = pointOffset
                 )
@@ -669,7 +682,7 @@ private fun InteractiveE1rmLineChart(
                     center = pointOffset
                 )
                 drawCircle(
-                    color = StatsVolt,
+                    color = VoltAccent,
                     radius = 5.dp.toPx(),
                     center = pointOffset
                 )
@@ -680,7 +693,7 @@ private fun InteractiveE1rmLineChart(
                     center = pointOffset
                 )
                 drawCircle(
-                    color = StatsVolt,
+                    color = VoltAccent,
                     radius = 3.5.dp.toPx(),
                     center = pointOffset
                 )
@@ -800,8 +813,8 @@ private fun MuscleHeatmapBentoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = StatsCardBg),
-        border = BorderStroke(1.dp, StatsBorder)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(
             modifier = Modifier
@@ -818,14 +831,14 @@ private fun MuscleHeatmapBentoCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
-                    color = StatsMuted
+                    color = TextMuted
                 )
 
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(AppBackground)
-                        .border(1.dp, StatsBorder, RoundedCornerShape(50))
+                        .border(1.dp, CardBorder, RoundedCornerShape(50))
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -848,8 +861,8 @@ private fun MuscleHeatmapBentoCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(StatsInnerBg)
-                    .border(1.dp, Color(0x66CCFF00), RoundedCornerShape(16.dp))
+                    .background(InputSurface)
+                    .border(1.dp, VoltAccent.copy(alpha = 0.40f), RoundedCornerShape(16.dp))
                     .padding(14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -870,14 +883,15 @@ private fun MuscleHeatmapBentoCard(
                             text = selectedMuscle.displayName,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = StatsWhite
+                            color = TextPrimary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "${selectedMuscle.weeklySets} Sets This Week",
                             fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.SemiBold,
-                            color = StatsVolt
+                            color = VoltAccent
                         )
                     }
                 }
@@ -885,15 +899,15 @@ private fun MuscleHeatmapBentoCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(StatsCardBg)
-                        .border(1.dp, StatsBorder, RoundedCornerShape(50))
+                        .background(CardSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(50))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = intensityLabel,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (selectedMuscle.weeklySets > 0) StatsVolt else StatsMuted
+                        color = if (selectedMuscle.weeklySets > 0) VoltAccent else TextMuted
                     )
                 }
             }
@@ -905,7 +919,7 @@ private fun MuscleHeatmapBentoCard(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(AppBackground)
-                    .border(1.dp, StatsBorder, RoundedCornerShape(16.dp))
+                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
                 Row(
@@ -913,11 +927,11 @@ private fun MuscleHeatmapBentoCard(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LegendDotItem(label = "High", color = StatsVolt)
+                    LegendDotItem(label = "High", color = VoltAccent)
                     Spacer(modifier = Modifier.width(10.dp))
-                    LegendDotItem(label = "Med", color = StatsMedVolt)
+                    LegendDotItem(label = "Med", color = VoltAccent.copy(alpha = 0.45f))
                     Spacer(modifier = Modifier.width(10.dp))
-                    LegendDotItem(label = "0", color = StatsZeroMuscle)
+                    LegendDotItem(label = "0", color = CardBorder)
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -941,17 +955,18 @@ private fun HeatmapOrientationTabButton(
 ) {
     Box(
         modifier = Modifier
+            .defaultMinSize(minWidth = 56.dp, minHeight = 44.dp)
             .clip(RoundedCornerShape(50))
-            .background(if (isSelected) StatsVolt else Color.Transparent)
+            .background(if (isSelected) VoltAccent else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) OnVolt else StatsMuted
+            color = if (isSelected) OnVolt else TextMuted
         )
     }
 }
@@ -975,7 +990,7 @@ private fun LegendDotItem(
             text = label,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
-            color = StatsMuted
+            color = TextMuted
         )
     }
 }
@@ -1019,7 +1034,7 @@ private fun InteractiveAnatomicalCanvas(
         val topOffset = (size.height - scale) / 2f
 
         drawCircle(
-            color = StatsZeroMuscle,
+            color = CardBorder,
             radius = scale * 0.052f,
             center = Offset(cx, topOffset + scale * 0.065f)
         )
@@ -1057,7 +1072,7 @@ private fun DrawScope.drawMuscleRegionRect(
     )
     if (isSelected) {
         drawRoundRect(
-            color = StatsWhite,
+            color = TextPrimary,
             topLeft = rect.topLeft,
             size = rect.size,
             cornerRadius = corner,
@@ -1108,7 +1123,7 @@ internal fun buildAnatomicalRegions(
 }
 
 private fun volumeIntensityColor(weeklySets: Int): Color = when {
-    weeklySets >= 8 -> StatsVolt
-    weeklySets >= 1 -> StatsMedVolt
-    else -> StatsZeroMuscle
+    weeklySets >= 8 -> VoltAccent
+    weeklySets >= 1 -> VoltAccent.copy(alpha = 0.45f)
+    else -> CardBorder
 }

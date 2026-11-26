@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
+import com.mulocoolbot.gymtracker.ui.theme.AppBackground
+import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -44,10 +47,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
-
-private val IntroBackground = Color(0xFF0B0C0E)
-private val IntroVolt = Color(0xFFCCFF00)
-private val IntroWhite = Color(0xFFFFFFFF)
 
 data class CrackBranch(
     val normalizedPoints: List<Offset>,
@@ -241,13 +240,13 @@ fun MFitOpeningIntro(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(IntroBackground),
+            .background(AppBackground),
         contentAlignment = Alignment.Center
     ) {
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .background(IntroBackground)
+                .background(AppBackground)
         ) {
             val shakeOffset = MFitOpeningIntroTimeline.computeCameraShakeOffset(elapsedMs)
             val shakePx = Offset(shakeOffset.x.dp.toPx(), shakeOffset.y.dp.toPx())
@@ -300,14 +299,14 @@ fun MFitOpeningIntro(
                     fontSize = 52.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-1.5).sp,
-                    color = IntroWhite
+                    color = TextPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "See the Progress",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = IntroVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -327,7 +326,7 @@ private fun DrawScope.drawAmbientGlow(
     val radius = 145.dp.toPx()
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(IntroVolt.copy(alpha = baseAlpha), Color.Transparent),
+            colors = listOf(VoltAccent.copy(alpha = baseAlpha), Color.Transparent),
             center = center,
             radius = radius
         ),
@@ -352,7 +351,7 @@ private fun DrawScope.drawShockwaveAndFloorCracks(
         val ry = rx * 0.28f
         val ringAlpha = (1f - shockwaveProgress) * 0.55f * crackAlpha
         drawOval(
-            color = IntroVolt.copy(alpha = ringAlpha),
+            color = VoltAccent.copy(alpha = ringAlpha),
             topLeft = Offset(impactCenter.x - rx, impactCenter.y - ry),
             size = Size(rx * 2f, ry * 2f),
             style = Stroke(width = 2.dp.toPx())
@@ -367,7 +366,7 @@ private fun DrawScope.drawShockwaveAndFloorCracks(
             val ry = rx * 0.28f
             val ringAlpha = (1f - outerWaveProgress) * 0.65f * crackAlpha
             drawOval(
-                color = IntroVolt.copy(alpha = ringAlpha),
+                color = VoltAccent.copy(alpha = ringAlpha),
                 topLeft = Offset(impactCenter.x - rx, impactCenter.y - ry),
                 size = Size(rx * 2f, ry * 2f),
                 style = Stroke(width = 2.2.dp.toPx())
@@ -394,7 +393,7 @@ private fun DrawScope.drawShockwaveAndFloorCracks(
         }
         drawPath(
             path = path,
-            color = IntroVolt.copy(alpha = 0.72f * crackAlpha),
+            color = VoltAccent.copy(alpha = 0.72f * crackAlpha),
             style = Stroke(
                 width = branch.strokeWidthDp.dp.toPx(),
                 cap = StrokeCap.Round,
@@ -413,7 +412,7 @@ private fun DrawScope.drawShockwaveAndFloorCracks(
                 (spark.initialVelocityY * tSec + 0.5f * gravityDpPerSec2 * tSec * tSec).dp.toPx()
             val sparkAlpha = (1f - dtMs.toFloat() / 540f).coerceIn(0f, 1f) * crackAlpha
             drawCircle(
-                color = IntroVolt.copy(alpha = sparkAlpha),
+                color = VoltAccent.copy(alpha = sparkAlpha),
                 radius = spark.radiusDp.dp.toPx(),
                 center = Offset(sx, sy)
             )
@@ -435,7 +434,7 @@ private fun DrawScope.drawCenterConnectingShaft(
     val cornerPx = 6.dp.toPx()
 
     drawRoundRect(
-        color = IntroWhite,
+        color = TextPrimary,
         topLeft = Offset(centerX - currentWidthPx / 2f, barbellCenterY - heightPx / 2f),
         size = Size(currentWidthPx, heightPx),
         cornerRadius = CornerRadius(cornerPx, cornerPx)
@@ -524,14 +523,14 @@ private fun DrawScope.drawPlateSymmetricPair(
     val topY = centerY - plateHeight / 2f
 
     drawRoundRect(
-        color = IntroVolt,
+        color = VoltAccent,
         topLeft = Offset(leftPlateX, topY),
         size = Size(plateWidth, plateHeight),
         cornerRadius = CornerRadius(cornerRadius, cornerRadius)
     )
 
     drawRoundRect(
-        color = IntroVolt,
+        color = VoltAccent,
         topLeft = Offset(rightPlateX, topY),
         size = Size(plateWidth, plateHeight),
         cornerRadius = CornerRadius(cornerRadius, cornerRadius)

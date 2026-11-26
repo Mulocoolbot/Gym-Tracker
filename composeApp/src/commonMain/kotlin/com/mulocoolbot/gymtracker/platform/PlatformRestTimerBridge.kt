@@ -7,6 +7,7 @@ interface PlatformRestTimerBridge {
     fun adjustBackgroundTimer(deltaSeconds: Int)
     fun stopBackgroundTimer()
     fun playIntroImpact(isMetallicLock: Boolean, intensity: Float = 1.0f)
+    fun playSetCompletedHaptic() = Unit
 }
 
 expect fun createPlatformRestTimerBridge(): PlatformRestTimerBridge

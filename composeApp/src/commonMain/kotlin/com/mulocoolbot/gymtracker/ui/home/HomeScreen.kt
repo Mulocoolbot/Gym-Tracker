@@ -30,7 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,7 +118,7 @@ private fun WeekDayCapsuleStrip(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         weekDays.forEach { day ->
             val isSelected = day.dayOfWeek == selectedDayOfWeek
@@ -159,6 +159,7 @@ private fun WeekDayCapsuleStrip(
                 Text(
                     text = day.dayNumber,
                     fontSize = 18.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = dayNumberColor
                 )
@@ -226,6 +227,7 @@ private fun StreakBentoCard(
                 Text(
                     text = currentStreak.toString(),
                     fontSize = 36.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -311,6 +313,7 @@ private fun CaloriesBentoCard(
                 Text(
                     text = todayCalories.toString(),
                     fontSize = 36.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -360,7 +363,7 @@ private fun HeroWorkoutPlanCard(
             .clip(cardShape)
             .drawWithContent {
                 drawContent()
-                val accentLineColor = Color(0x22D4FF00)
+                val accentLineColor = VoltAccent.copy(alpha = 0.13f)
                 val strokeWidth = 2.dp.toPx()
                 drawLine(
                     color = accentLineColor,
@@ -433,7 +436,7 @@ private fun HeroWorkoutPlanCard(
                             .align(Alignment.CenterEnd)
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0x260B0C0E)),
+                            .background(OnVolt.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

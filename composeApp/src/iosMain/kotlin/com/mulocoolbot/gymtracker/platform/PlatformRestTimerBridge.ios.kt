@@ -129,6 +129,13 @@ private object IosRestTimerBridge : PlatformRestTimerBridge {
         }
     }
 
+    override fun playSetCompletedHaptic() {
+        UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleLight).apply {
+            prepare()
+            impactOccurred()
+        }
+    }
+
     private fun ensureLifecycleObservers() {
         ensureIosNotificationDelegateInstalled()
         if (lifecycleRegistered) return

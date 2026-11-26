@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -79,20 +80,19 @@ import com.mulocoolbot.gymtracker.ui.components.DismissKeyboardOnScroll
 import com.mulocoolbot.gymtracker.ui.components.GoogleLogoIcon
 import com.mulocoolbot.gymtracker.ui.components.dismissKeyboardOnTap
 import com.mulocoolbot.gymtracker.ui.theme.AppBackground
+import com.mulocoolbot.gymtracker.ui.theme.CardBorder
+import com.mulocoolbot.gymtracker.ui.theme.CardSurface
+import com.mulocoolbot.gymtracker.ui.theme.DangerRed
+import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
+import com.mulocoolbot.gymtracker.ui.theme.TextMuted
+import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import com.mulocoolbot.gymtracker.util.parseDecimalInput
 import kotlin.math.round
 import kotlinx.coroutines.launch
-
-private val SettingsCardBg = Color(0xFF14161B)
-private val SettingsInnerBg = Color(0xFF1A1D24)
-private val SettingsBorder = Color(0xFF232730)
-private val SettingsVolt = Color(0xFFCCFF00)
-private val SettingsWhite = Color(0xFFFFFFFF)
-private val SettingsMuted = Color(0xFF8C92A4)
-private val SettingsDanger = Color(0xFFEF4444)
 
 internal data class BackupStatusFeedback(
     val message: String,
@@ -152,7 +152,7 @@ fun SettingsScreen(
             text = "Settings",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = SettingsWhite
+            color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -254,8 +254,8 @@ private fun AboutMeBentoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
-        border = BorderStroke(1.dp, SettingsBorder)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -268,28 +268,30 @@ private fun AboutMeBentoCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.8.sp,
-                    color = SettingsMuted
+                    color = TextMuted
                 )
 
                 val displayUid = uid.ifBlank { "-" }
                 Box(
                     modifier = Modifier
+                        .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(SettingsInnerBg)
-                        .border(1.dp, SettingsBorder, RoundedCornerShape(50))
+                        .background(InputSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(50))
                         .clickable {
                             if (uid.isNotBlank()) {
                                 clipboardManager.setText(AnnotatedString(uid))
                             }
                         }
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = displayUid,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = SettingsVolt,
+                        color = VoltAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.width(140.dp),
@@ -308,8 +310,8 @@ private fun AboutMeBentoCard(
                     modifier = Modifier
                         .weight(2f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SettingsInnerBg)
-                        .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+                        .background(InputSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Text(
@@ -317,7 +319,7 @@ private fun AboutMeBentoCard(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.6.sp,
-                        color = SettingsMuted
+                        color = TextMuted
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     BasicTextField(
@@ -337,11 +339,11 @@ private fun AboutMeBentoCard(
                                 keyboardController?.hide()
                             }
                         ),
-                        cursorBrush = SolidColor(SettingsVolt),
+                        cursorBrush = SolidColor(VoltAccent),
                         textStyle = TextStyle(
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = SettingsWhite
+                            color = TextPrimary
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -351,8 +353,8 @@ private fun AboutMeBentoCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SettingsInnerBg)
-                        .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+                        .background(InputSurface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Text(
@@ -360,7 +362,7 @@ private fun AboutMeBentoCard(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.6.sp,
-                        color = SettingsMuted
+                        color = TextMuted
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -368,7 +370,7 @@ private fun AboutMeBentoCard(
                         fontSize = 16.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = SettingsWhite,
+                        color = TextPrimary,
                         maxLines = 1
                     )
                 }
@@ -424,8 +426,8 @@ private fun SettingsMetricStepperBox(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(SettingsInnerBg)
-            .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+            .background(InputSurface)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
             .padding(12.dp)
     ) {
         Row(
@@ -438,14 +440,14 @@ private fun SettingsMetricStepperBox(
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.6.sp,
-                color = SettingsMuted
+                color = TextMuted
             )
             if (isFocused) {
                 Text(
                     text = "Done",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SettingsVolt,
+                    color = VoltAccent,
                     modifier = Modifier.clickable {
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -463,18 +465,18 @@ private fun SettingsMetricStepperBox(
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(SettingsCardBg)
-                    .border(1.dp, SettingsBorder, RoundedCornerShape(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
                     .clickable(onClick = onDecrement),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "-",
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SettingsWhite
+                    color = TextPrimary
                 )
             }
 
@@ -492,12 +494,12 @@ private fun SettingsMetricStepperBox(
                         keyboardController?.hide()
                     }
                 ),
-                cursorBrush = SolidColor(SettingsVolt),
+                cursorBrush = SolidColor(VoltAccent),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = SettingsWhite,
+                    color = TextPrimary,
                     textAlign = TextAlign.Center
                 ),
                 modifier = Modifier
@@ -507,18 +509,18 @@ private fun SettingsMetricStepperBox(
 
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(SettingsCardBg)
-                    .border(1.dp, SettingsBorder, RoundedCornerShape(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
                     .clickable(onClick = onIncrement),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "+",
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SettingsVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -551,8 +553,8 @@ private fun AccountInfoBentoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
-        border = BorderStroke(1.dp, SettingsBorder)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -565,15 +567,15 @@ private fun AccountInfoBentoCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.8.sp,
-                    color = SettingsMuted
+                    color = TextMuted
                 )
 
                 if (!authBridge.isCloudAuthConfigured || authSession.isOfflineMode) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(SettingsInnerBg)
-                            .border(1.dp, SettingsBorder, RoundedCornerShape(50))
+                            .background(InputSurface)
+                            .border(1.dp, CardBorder, RoundedCornerShape(50))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -581,7 +583,7 @@ private fun AccountInfoBentoCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp,
-                            color = SettingsVolt
+                            color = VoltAccent
                         )
                     }
                 }
@@ -593,7 +595,7 @@ private fun AccountInfoBentoCard(
                     text = "Local-only storage active. Account linking is optional; workouts and JSON backups work offline without Firebase.",
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
-                    color = SettingsMuted
+                    color = TextMuted
                 )
             }
 
@@ -636,7 +638,7 @@ private fun AccountInfoBentoCard(
                 },
                 isLinked = authSession.isEmailLinked,
                 iconContent = {
-                    EmailEnvelopeIcon(tint = SettingsVolt)
+                    EmailEnvelopeIcon(tint = VoltAccent)
                 },
                 onActionClick = {
                     if (authSession.isEmailLinked) {
@@ -654,7 +656,7 @@ private fun AccountInfoBentoCard(
                     text = accountStatusMessage!!,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
-                    color = SettingsMuted
+                    color = TextMuted
                 )
             }
         }
@@ -718,8 +720,8 @@ private fun ProviderStatusBentoRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SettingsInnerBg)
-            .border(1.dp, SettingsBorder, RoundedCornerShape(16.dp))
+            .background(InputSurface)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -733,8 +735,8 @@ private fun ProviderStatusBentoRow(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(SettingsCardBg)
-                    .border(1.dp, SettingsBorder, RoundedCornerShape(12.dp)),
+                    .background(CardSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 iconContent()
@@ -745,14 +747,14 @@ private fun ProviderStatusBentoRow(
                     text = providerName,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SettingsWhite
+                    color = TextPrimary
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = linkedAddress,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = if (isLinked) SettingsVolt else SettingsMuted,
+                    color = if (isLinked) VoltAccent else TextMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -764,23 +766,25 @@ private fun ProviderStatusBentoRow(
         if (isLinked) {
             OutlinedButton(
                 onClick = onActionClick,
+                modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, SettingsDanger),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = SettingsDanger)
+                border = BorderStroke(1.dp, DangerRed),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed)
             ) {
                 Text(
                     text = "Log Out",
                     fontSize = 12.sp,
-                    color = SettingsDanger,
+                    color = DangerRed,
                     fontWeight = FontWeight.Bold
                 )
             }
         } else {
             Button(
                 onClick = onActionClick,
+                modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SettingsVolt,
+                    containerColor = VoltAccent,
                     contentColor = OnVolt
                 )
             ) {
@@ -817,15 +821,15 @@ private fun LinkEmailOtpDialog(
                 .fillMaxWidth()
                 .dismissKeyboardOnTap(),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
-            border = BorderStroke(1.dp, SettingsBorder)
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, CardBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = if (isOtpStep) "Verify Email" else "Link Email",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SettingsWhite
+                    color = TextPrimary
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -838,7 +842,7 @@ private fun LinkEmailOtpDialog(
                             errorMessage = null
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(text = "Email address", color = SettingsMuted) },
+                        placeholder = { Text(text = "Email address", color = TextMuted) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Email,
@@ -852,20 +856,20 @@ private fun LinkEmailOtpDialog(
                         ),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = SettingsWhite,
-                            unfocusedTextColor = SettingsWhite,
-                            focusedContainerColor = SettingsInnerBg,
-                            unfocusedContainerColor = SettingsInnerBg,
-                            focusedBorderColor = SettingsVolt,
-                            unfocusedBorderColor = SettingsBorder,
-                            cursorColor = SettingsVolt
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = InputSurface,
+                            unfocusedContainerColor = InputSurface,
+                            focusedBorderColor = VoltAccent,
+                            unfocusedBorderColor = CardBorder,
+                            cursorColor = VoltAccent
                         )
                     )
                 } else {
                     Text(
                         text = emailInput.trim(),
                         fontSize = 13.sp,
-                        color = SettingsMuted
+                        color = TextMuted
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     SixDigitOtpInputField(
@@ -882,7 +886,7 @@ private fun LinkEmailOtpDialog(
                     Text(
                         text = errorMessage!!,
                         fontSize = 12.sp,
-                        color = SettingsDanger
+                        color = DangerRed
                     )
                 }
 
@@ -892,8 +896,11 @@ private fun LinkEmailOtpDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = "Cancel", color = SettingsMuted)
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                    ) {
+                        Text(text = "Cancel", color = TextMuted)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -920,12 +927,13 @@ private fun LinkEmailOtpDialog(
                             }
                         },
                         enabled = if (!isOtpStep) emailInput.isNotBlank() else otpCodeInput.length == 6,
+                        modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = SettingsVolt,
+                            containerColor = VoltAccent,
                             contentColor = OnVolt,
-                            disabledContainerColor = SettingsInnerBg,
-                            disabledContentColor = SettingsMuted
+                            disabledContainerColor = InputSurface,
+                            disabledContentColor = TextMuted
                         )
                     ) {
                         Text(
@@ -950,8 +958,8 @@ private fun DataBackupBentoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = SettingsCardBg),
-        border = BorderStroke(1.dp, SettingsBorder)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -959,7 +967,7 @@ private fun DataBackupBentoCard(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.8.sp,
-                color = SettingsMuted
+                color = TextMuted
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -975,7 +983,7 @@ private fun DataBackupBentoCard(
                         .height(50.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = SettingsVolt,
+                        containerColor = VoltAccent,
                         contentColor = OnVolt
                     )
                 ) {
@@ -993,16 +1001,16 @@ private fun DataBackupBentoCard(
                         .weight(1f)
                         .height(50.dp),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, SettingsBorder),
+                    border = BorderStroke(1.dp, CardBorder),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = SettingsInnerBg,
-                        contentColor = SettingsWhite
+                        containerColor = InputSurface,
+                        contentColor = TextPrimary
                     )
                 ) {
                     Text(
                         text = "Import",
                         fontSize = 14.sp,
-                        color = SettingsWhite,
+                        color = TextPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1015,7 +1023,7 @@ private fun DataBackupBentoCard(
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = if (feedback.isError) SettingsDanger else SettingsVolt
+                    color = if (feedback.isError) DangerRed else VoltAccent
                 )
             }
         }

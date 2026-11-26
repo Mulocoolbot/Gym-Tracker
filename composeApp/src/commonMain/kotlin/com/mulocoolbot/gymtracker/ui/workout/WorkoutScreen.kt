@@ -8,14 +8,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalFocusManager
@@ -80,13 +83,11 @@ import com.mulocoolbot.gymtracker.ui.theme.InputSurface
 import com.mulocoolbot.gymtracker.ui.theme.OnVolt
 import com.mulocoolbot.gymtracker.ui.theme.TextMuted
 import com.mulocoolbot.gymtracker.ui.theme.TextPrimary
+import com.mulocoolbot.gymtracker.ui.theme.VoltAccent
 import com.mulocoolbot.gymtracker.ui.tutorial.TutorialTargetId
 import com.mulocoolbot.gymtracker.ui.tutorial.tutorialTarget
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
 import com.mulocoolbot.gymtracker.util.parseDecimalInput
-
-private val WorkoutVolt = Color(0xFFCCFF00)
-private val PillBadgeDark = Color(0xFF232733)
 
 private val MUSCLE_GROUP_TAGS = listOf(
     "LATS",
@@ -189,21 +190,31 @@ private fun IdleWorkoutContent(
     onStartWorkout: () -> Unit
 ) {
     if (completedSets.isEmpty()) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(AppBackground)
-                .padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            IdleWorkoutHeaderRow(onStartWorkout = onStartWorkout)
-
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                EmptyWorkoutTodayCard(onStartWorkout = onStartWorkout)
+                IdleWorkoutHeaderRow(onStartWorkout = onStartWorkout)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmptyWorkoutTodayCard(onStartWorkout = onStartWorkout)
+                }
+
+                Spacer(modifier = Modifier.height(1.dp))
             }
         }
     } else {
@@ -241,8 +252,9 @@ private fun IdleWorkoutContent(
                     Text(
                         text = "${completedSets.size} Sets",
                         fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = WorkoutVolt
+                        color = VoltAccent
                     )
                 }
             }
@@ -270,14 +282,14 @@ private fun IdleWorkoutHeaderRow(
             text = "Workout",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFFFFFFF)
+            color = TextPrimary
         )
 
         Box(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(WorkoutVolt)
+                .background(VoltAccent)
                 .clickable(onClick = onStartWorkout),
             contentAlignment = Alignment.Center
         ) {
@@ -298,8 +310,8 @@ private fun EmptyWorkoutTodayCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF14161B)),
-        border = BorderStroke(1.dp, Color(0xFF232730))
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(
             modifier = Modifier
@@ -311,14 +323,14 @@ private fun EmptyWorkoutTodayCard(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1D24))
-                    .border(1.dp, Color(0xFF232730), RoundedCornerShape(20.dp)),
+                    .background(InputSurface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = DumbbellIcon,
                     contentDescription = "No Workout Recorded Today",
-                    tint = WorkoutVolt,
+                    tint = VoltAccent,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -329,7 +341,7 @@ private fun EmptyWorkoutTodayCard(
                 text = "No Workout Recorded Today",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFFFFFFF)
+                color = TextPrimary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -337,7 +349,7 @@ private fun EmptyWorkoutTodayCard(
             Text(
                 text = "Start logging your sets to track your daily volume and rest timer.",
                 fontSize = 13.sp,
-                color = Color(0xFF8C92A4),
+                color = TextMuted,
                 textAlign = TextAlign.Center
             )
 
@@ -351,7 +363,7 @@ private fun EmptyWorkoutTodayCard(
                     .tutorialTarget(TutorialTargetId.WORKOUT_START_AREA),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = WorkoutVolt,
+                    containerColor = VoltAccent,
                     contentColor = OnVolt
                 )
             ) {
@@ -379,7 +391,7 @@ private fun TodayWorkoutPlanHeroCard(
             .clip(cardShape)
             .drawWithContent {
                 drawContent()
-                val lineColor = WorkoutVolt.copy(alpha = 0.15f)
+                val lineColor = VoltAccent.copy(alpha = 0.15f)
                 val strokeWidth = 2.dp.toPx()
                 drawLine(
                     color = lineColor,
@@ -406,7 +418,7 @@ private fun TodayWorkoutPlanHeroCard(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(PillBadgeDark)
+                    .background(CardBorder)
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -414,7 +426,7 @@ private fun TodayWorkoutPlanHeroCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.sp,
-                    color = WorkoutVolt
+                    color = VoltAccent
                 )
             }
 
@@ -432,7 +444,7 @@ private fun TodayWorkoutPlanHeroCard(
                     .height(58.dp)
                     .tutorialTarget(TutorialTargetId.WORKOUT_START_AREA)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(WorkoutVolt)
+                    .background(VoltAccent)
                     .clickable(onClick = onStartWorkout)
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center
@@ -449,7 +461,7 @@ private fun TodayWorkoutPlanHeroCard(
                         .align(Alignment.CenterEnd)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0x260B0C0E)),
+                        .background(OnVolt.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -493,8 +505,9 @@ private fun CompletedSetCard(setEntity: WorkoutSetEntity) {
                     Text(
                         text = setEntity.setLabel,
                         fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = WorkoutVolt
+                        color = VoltAccent
                     )
                 }
 
@@ -511,7 +524,7 @@ private fun CompletedSetCard(setEntity: WorkoutSetEntity) {
                 fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = WorkoutVolt
+                color = VoltAccent
             )
         }
     }
@@ -632,8 +645,9 @@ private fun ActiveWorkoutContent(
                 Text(
                     text = "${uiState.activeSessionSets.size} Sets",
                     fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -677,14 +691,14 @@ private fun ActiveWorkoutHeaderRow(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(WorkoutVolt)
+                        .background(VoltAccent)
                 )
                 Text(
                     text = WorkoutViewModel.formatElapsedHHMMSS(elapsedSeconds),
                     fontSize = 14.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt
+                    color = VoltAccent
                 )
                 Text(
                     text = "·",
@@ -695,6 +709,7 @@ private fun ActiveWorkoutHeaderRow(
                 Text(
                     text = "$liveCaloriesBurned kcal",
                     fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium,
                     color = TextMuted
                 )
@@ -703,11 +718,12 @@ private fun ActiveWorkoutHeaderRow(
 
         Row(
             modifier = Modifier
+                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                 .clip(RoundedCornerShape(50))
                 .background(CardSurface)
                 .border(1.dp, DangerRed, RoundedCornerShape(50))
                 .clickable(onClick = onRequestFinishWorkout)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -776,14 +792,14 @@ private fun ActiveSetEntryFormCard(
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PillBadgeDark)
+                            .background(CardBorder)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = selectedMuscleGroup,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = WorkoutVolt
+                            color = VoltAccent
                         )
                     }
                 },
@@ -801,9 +817,9 @@ private fun ActiveSetEntryFormCard(
                     unfocusedTextColor = TextPrimary,
                     focusedContainerColor = InputSurface,
                     unfocusedContainerColor = InputSurface,
-                    focusedBorderColor = WorkoutVolt,
+                    focusedBorderColor = VoltAccent,
                     unfocusedBorderColor = CardBorder,
-                    cursorColor = WorkoutVolt
+                    cursorColor = VoltAccent
                 )
             )
 
@@ -818,11 +834,13 @@ private fun ActiveSetEntryFormCard(
                     exerciseSuggestions.forEach { item ->
                         Box(
                             modifier = Modifier
+                                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                                 .clip(RoundedCornerShape(50))
                                 .background(InputSurface)
                                 .border(1.dp, CardBorder, RoundedCornerShape(50))
                                 .clickable { onSelectExerciseSuggestion(item) }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = item.normalizedName,
@@ -847,15 +865,17 @@ private fun ActiveSetEntryFormCard(
                     val isSelected = selectedMuscleGroup.equals(muscleTag, ignoreCase = true)
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(if (isSelected) WorkoutVolt else InputSurface)
+                            .background(if (isSelected) VoltAccent else InputSurface)
                             .border(
                                 width = 1.dp,
-                                color = if (isSelected) WorkoutVolt else CardBorder,
+                                color = if (isSelected) VoltAccent else CardBorder,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { onSelectMuscleGroup(muscleTag) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = muscleTag,
@@ -916,7 +936,7 @@ private fun ActiveSetEntryFormCard(
                     .height(54.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = WorkoutVolt,
+                    containerColor = VoltAccent,
                     contentColor = OnVolt,
                     disabledContainerColor = InputSurface,
                     disabledContentColor = TextMuted
@@ -961,34 +981,40 @@ private fun StepperNumericBox(
                 color = TextMuted
             )
             if (isFocused) {
-                Text(
-                    text = "Done",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt,
-                    modifier = Modifier.clickable {
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                    }
-                )
+                Box(
+                    modifier = Modifier
+                        .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                        .clickable {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        },
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Text(
+                        text = "Done",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = VoltAccent
+                    )
+                }
             }
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(54.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(InputSurface)
                 .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                .padding(horizontal = 6.dp),
+                .padding(horizontal = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(CardSurface)
                     .clickable(onClick = onDecrement),
                 contentAlignment = Alignment.Center
@@ -1012,7 +1038,7 @@ private fun StepperNumericBox(
                     color = TextPrimary,
                     textAlign = TextAlign.Center
                 ),
-                cursorBrush = SolidColor(WorkoutVolt),
+                cursorBrush = SolidColor(VoltAccent),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = keyboardType,
                     imeAction = ImeAction.Done
@@ -1030,8 +1056,8 @@ private fun StepperNumericBox(
 
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(CardSurface)
                     .clickable(onClick = onIncrement),
                 contentAlignment = Alignment.Center
@@ -1040,7 +1066,7 @@ private fun StepperNumericBox(
                     text = "+",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt
+                    color = VoltAccent
                 )
             }
         }
@@ -1068,16 +1094,18 @@ private fun SetTypeSelectorRow(
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (isSelected) WorkoutVolt else InputSurface)
+                    .background(if (isSelected) VoltAccent else InputSurface)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) WorkoutVolt else CardBorder,
+                        color = if (isSelected) VoltAccent else CardBorder,
                         shape = RoundedCornerShape(14.dp)
                     )
                     .clickable { onSelectSetType(typeKey) }
                     .padding(vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = title,
@@ -1112,7 +1140,7 @@ private fun ActiveSessionSetCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1130,8 +1158,9 @@ private fun ActiveSessionSetCard(
                     Text(
                         text = setItem.setLabel,
                         fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = WorkoutVolt
+                        color = VoltAccent
                     )
                 }
 
@@ -1154,40 +1183,47 @@ private fun ActiveSessionSetCard(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "${formatCompactNumber(setItem.weightKg)} kg × ${setItem.reps}",
                     fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    color = WorkoutVolt
+                    color = VoltAccent
                 )
 
                 Box(
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .background(InputSurface)
                         .clickable(onClick = onDelete),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(modifier = Modifier.size(10.dp)) {
-                        val stroke = 2.dp.toPx()
-                        drawLine(
-                            color = TextMuted,
-                            start = Offset(0f, 0f),
-                            end = Offset(size.width, size.height),
-                            strokeWidth = stroke,
-                            cap = StrokeCap.Round
-                        )
-                        drawLine(
-                            color = TextMuted,
-                            start = Offset(size.width, 0f),
-                            end = Offset(0f, size.height),
-                            strokeWidth = stroke,
-                            cap = StrokeCap.Round
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(InputSurface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(10.dp)) {
+                            val stroke = 2.dp.toPx()
+                            drawLine(
+                                color = TextMuted,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, size.height),
+                                strokeWidth = stroke,
+                                cap = StrokeCap.Round
+                            )
+                            drawLine(
+                                color = TextMuted,
+                                start = Offset(size.width, 0f),
+                                end = Offset(0f, size.height),
+                                strokeWidth = stroke,
+                                cap = StrokeCap.Round
+                            )
+                        }
                     }
                 }
             }
@@ -1218,7 +1254,7 @@ private fun FloatingRestTimerOverlay(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.5.dp, WorkoutVolt)
+        border = BorderStroke(1.5.dp, VoltAccent)
     ) {
         Column(
             modifier = Modifier
@@ -1243,7 +1279,7 @@ private fun FloatingRestTimerOverlay(
                         fontSize = 28.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = WorkoutVolt
+                        color = VoltAccent
                     )
                 }
 
@@ -1253,15 +1289,18 @@ private fun FloatingRestTimerOverlay(
                 ) {
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(InputSurface)
                             .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                             .clickable { onAdjustTimer(-15) }
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "-15s",
                             fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
@@ -1269,15 +1308,18 @@ private fun FloatingRestTimerOverlay(
 
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(InputSurface)
                             .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                             .clickable { onAdjustTimer(15) }
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "+15s",
                             fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
@@ -1285,10 +1327,12 @@ private fun FloatingRestTimerOverlay(
 
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(WorkoutVolt)
+                            .background(VoltAccent)
                             .clickable(onClick = onSkipOrDismiss)
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = actionLabel,
@@ -1315,7 +1359,7 @@ private fun FloatingRestTimerOverlay(
                             .fillMaxWidth(progress)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(3.dp))
-                            .background(WorkoutVolt)
+                            .background(VoltAccent)
                     )
                 }
             }
@@ -1403,7 +1447,7 @@ private fun FinishWorkoutModal(
                             .weight(1f)
                             .height(50.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(WorkoutVolt)
+                            .background(VoltAccent)
                             .clickable(onClick = onFinishAndSave),
                         contentAlignment = Alignment.Center
                     ) {

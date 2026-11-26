@@ -1,8 +1,12 @@
 package com.mulocoolbot.gymtracker.platform
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -42,6 +46,26 @@ private object AndroidRestTimerBridge : PlatformRestTimerBridge {
             } else {
                 OpeningSoundEffects.playHeavyBoom(context, intensity)
             }
+        }
+    }
+
+    override fun playSetCompletedHaptic() {
+        runCatching {
+            val context = AndroidPlatformContext.requireContext()
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            } ?: return@runCatching
+
+            if (!vibrator.hasVibrator()) return@runCatching
+            val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+            } else {
+                VibrationEffect.createOneShot(18L, 80)
+            }
+            vibrator.vibrate(effect)
         }
     }
 }
