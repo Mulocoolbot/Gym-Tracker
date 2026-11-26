@@ -10,7 +10,39 @@
 		1D0000010000000000000001 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000001 /* iOSApp.swift */; };
 		1D0000010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000002 /* ContentView.swift */; };
 		1D0000010000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000003 /* Assets.xcassets */; };
+		1D0000010000000000000004 /* MFitLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000005 /* MFitLiveActivityManager.swift */; };
+		1D0000010000000000000005 /* MFitWorkoutAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000006 /* MFitWorkoutAttributes.swift */; };
+		1D0000010000000000000006 /* MFitLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000007 /* MFitLiveActivityIntents.swift */; };
+		1D0000010000000000000007 /* MFitWorkoutAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000006 /* MFitWorkoutAttributes.swift */; };
+		1D0000010000000000000008 /* MFitLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000007 /* MFitLiveActivityIntents.swift */; };
+		1D0000010000000000000009 /* MFitLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000008 /* MFitLiveActivityBundle.swift */; };
+		1D000001000000000000000A /* MFitWorkoutLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0000020000000000000009 /* MFitWorkoutLiveActivityWidget.swift */; };
+		1D000001000000000000000B /* MFitLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1D000002000000000000000B /* MFitLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1D00000C0000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D00000A0000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1D0000080000000000000002;
+			remoteInfo = MFitLiveActivityExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1D00000E0000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1D000001000000000000000B /* MFitLiveActivityExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1D0000020000000000000000 /* MFit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -18,10 +50,24 @@
 		1D0000020000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1D0000020000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1D0000020000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1D0000020000000000000005 /* MFitLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFitLiveActivityManager.swift; sourceTree = "<group>"; };
+		1D0000020000000000000006 /* MFitWorkoutAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFitWorkoutAttributes.swift; sourceTree = "<group>"; };
+		1D0000020000000000000007 /* MFitLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFitLiveActivityIntents.swift; sourceTree = "<group>"; };
+		1D0000020000000000000008 /* MFitLiveActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFitLiveActivityBundle.swift; sourceTree = "<group>"; };
+		1D0000020000000000000009 /* MFitWorkoutLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFitWorkoutLiveActivityWidget.swift; sourceTree = "<group>"; };
+		1D000002000000000000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1D000002000000000000000B /* MFitLiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MFitLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		1D0000030000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1D0000030000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -35,6 +81,8 @@
 			isa = PBXGroup;
 			children = (
 				1D0000040000000000000002 /* iosApp */,
+				1D0000040000000000000004 /* SharedLiveActivity */,
+				1D0000040000000000000005 /* MFitLiveActivityExtension */,
 				1D0000040000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -44,6 +92,7 @@
 			children = (
 				1D0000020000000000000001 /* iOSApp.swift */,
 				1D0000020000000000000002 /* ContentView.swift */,
+				1D0000020000000000000005 /* MFitLiveActivityManager.swift */,
 				1D0000020000000000000003 /* Assets.xcassets */,
 				1D0000020000000000000004 /* Info.plist */,
 			);
@@ -54,8 +103,28 @@
 			isa = PBXGroup;
 			children = (
 				1D0000020000000000000000 /* MFit.app */,
+				1D000002000000000000000B /* MFitLiveActivityExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1D0000040000000000000004 /* SharedLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				1D0000020000000000000006 /* MFitWorkoutAttributes.swift */,
+				1D0000020000000000000007 /* MFitLiveActivityIntents.swift */,
+			);
+			path = SharedLiveActivity;
+			sourceTree = "<group>";
+		};
+		1D0000040000000000000005 /* MFitLiveActivityExtension */ = {
+			isa = PBXGroup;
+			children = (
+				1D0000020000000000000008 /* MFitLiveActivityBundle.swift */,
+				1D0000020000000000000009 /* MFitWorkoutLiveActivityWidget.swift */,
+				1D000002000000000000000A /* Info.plist */,
+			);
+			path = MFitLiveActivityExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -69,15 +138,34 @@
 				1D0000060000000000000001 /* Sources */,
 				1D0000030000000000000001 /* Frameworks */,
 				1D0000070000000000000001 /* Resources */,
+				1D00000E0000000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				1D00000D0000000000000001 /* PBXTargetDependency */,
 			);
 			name = iosApp;
 			productName = iosApp;
 			productReference = 1D0000020000000000000000 /* MFit.app */;
 			productType = "com.apple.product-type.application";
+		};
+		1D0000080000000000000002 /* MFitLiveActivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1D0000090000000000000003 /* Build configuration list for PBXNativeTarget "MFitLiveActivityExtension" */;
+			buildPhases = (
+				1D0000060000000000000002 /* Sources */,
+				1D0000030000000000000002 /* Frameworks */,
+				1D0000070000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MFitLiveActivityExtension;
+			productName = MFitLiveActivityExtension;
+			productReference = 1D000002000000000000000B /* MFitLiveActivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -90,6 +178,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					1D0000080000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					1D0000080000000000000002 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -108,6 +199,7 @@
 			projectRoot = "";
 			targets = (
 				1D0000080000000000000001 /* iosApp */,
+				1D0000080000000000000002 /* MFitLiveActivityExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -118,6 +210,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				1D0000010000000000000003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1D0000070000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -152,10 +251,32 @@
 			files = (
 				1D0000010000000000000001 /* iOSApp.swift in Sources */,
 				1D0000010000000000000002 /* ContentView.swift in Sources */,
+				1D0000010000000000000004 /* MFitLiveActivityManager.swift in Sources */,
+				1D0000010000000000000005 /* MFitWorkoutAttributes.swift in Sources */,
+				1D0000010000000000000006 /* MFitLiveActivityIntents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1D0000060000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D0000010000000000000007 /* MFitWorkoutAttributes.swift in Sources */,
+				1D0000010000000000000008 /* MFitLiveActivityIntents.swift in Sources */,
+				1D0000010000000000000009 /* MFitLiveActivityBundle.swift in Sources */,
+				1D000001000000000000000A /* MFitWorkoutLiveActivityWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D00000D0000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1D0000080000000000000002 /* MFitLiveActivityExtension */;
+			targetProxy = 1D00000C0000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1D00000B0000000000000001 /* Debug */ = {
@@ -349,6 +470,58 @@
 			};
 			name = Release;
 		};
+		1D00000B0000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MFitLiveActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mulocoolbot.gymtracker.iosApp.MFitLiveActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1D00000B0000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MFitLiveActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mulocoolbot.gymtracker.iosApp.MFitLiveActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -366,6 +539,15 @@
 			buildConfigurations = (
 				1D00000B0000000000000003 /* Debug */,
 				1D00000B0000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1D0000090000000000000003 /* Build configuration list for PBXNativeTarget "MFitLiveActivityExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1D00000B0000000000000005 /* Debug */,
+				1D00000B0000000000000006 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

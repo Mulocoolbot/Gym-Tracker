@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
         AndroidPlatformBindings.stopRestTimerService = { ctx ->
             RestTimerService.stopRestTimer(ctx)
         }
+        AndroidPlatformBindings.syncLiveIslandState = { ctx, state ->
+            RestTimerService.syncLiveIslandState(ctx, state)
+        }
         AndroidPlatformBindings.deliverEmailOtp = { ctx, email, otpCode ->
             EmailOtpSender.sendOtpEmail(ctx, email, otpCode)
         }

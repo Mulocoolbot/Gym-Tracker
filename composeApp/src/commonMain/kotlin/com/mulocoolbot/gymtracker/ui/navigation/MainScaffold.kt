@@ -33,11 +33,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -54,7 +56,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
+import com.mulocoolbot.gymtracker.platform.LiveIslandActionHandler
 import com.mulocoolbot.gymtracker.platform.PlatformPermissionsRequester
+import com.mulocoolbot.gymtracker.platform.createLiveIslandController
 import com.mulocoolbot.gymtracker.platform.createPlatformRestTimerBridge
 import com.mulocoolbot.gymtracker.platform.iosEdgeSwipeBack
 import com.mulocoolbot.gymtracker.platform.rememberNotificationPermissionRequester
@@ -189,6 +193,7 @@ private fun AuthenticatedMainContent(
 ) {
     val ensureNotificationPermission = rememberNotificationPermissionRequester()
     val timerBridge = remember { createPlatformRestTimerBridge() }
+    val liveIslandController = remember { createLiveIslandController() }
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -209,6 +214,40 @@ private fun AuthenticatedMainContent(
     )
 
     val homeState by homeViewModel.uiState.collectAsState()
+    val workoutUiState by workoutViewModel.uiState.collectAsState()
+    val resolvedPlanName = if (homeState.selectedDayPlan.isRestDay) {
+        workoutUiState.todayPlanName
+    } else {
+        homeState.selectedDayPlan.planName
+    }
+    val latestPlanName by rememberUpdatedState(resolvedPlanName)
+
+    DisposableEffect(liveIslandController, workoutViewModel, timerBridge) {
+        liveIslandController.bindActionHandler(
+            object : LiveIslandActionHandler {
+                override fun onStopRestTimerFromIsland() {
+                    workoutViewModel.onStopRestTimerFromIsland {
+                        timerBridge.stopBackgroundTimer()
+                    }
+                }
+
+                override fun onStopWorkoutFromIsland() {
+                    workoutViewModel.onStopWorkoutFromIsland(planName = latestPlanName) {
+                        timerBridge.stopBackgroundTimer()
+                    }
+                }
+            }
+        )
+        onDispose {
+            liveIslandController.bindActionHandler(null)
+        }
+    }
+
+    LaunchedEffect(liveIslandController, workoutViewModel) {
+        workoutViewModel.liveIslandState.collect { state ->
+            liveIslandController.syncState(state)
+        }
+    }
 
     val tutorialTargets = remember { mutableStateMapOf<TutorialTargetId, Rect>() }
     val tutorialController = remember { TutorialController() }

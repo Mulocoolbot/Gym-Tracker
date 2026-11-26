@@ -12,6 +12,8 @@ import com.mulocoolbot.gymtracker.data.local.WorkoutSetEntity
 import com.mulocoolbot.gymtracker.data.repository.GymRepository
 import com.mulocoolbot.gymtracker.timer.RestTimerController
 import com.mulocoolbot.gymtracker.timer.RestTimerState
+import com.mulocoolbot.gymtracker.timer.WorkoutLiveIslandState
+import com.mulocoolbot.gymtracker.timer.resolveWorkoutLiveIslandState
 import com.mulocoolbot.gymtracker.util.WorkoutCalculator
 import com.mulocoolbot.gymtracker.util.currentEpochMillis
 import com.mulocoolbot.gymtracker.util.formatCompactNumber
@@ -175,6 +177,20 @@ class WorkoutViewModel(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = WorkoutUiState()
+    )
+
+    val liveIslandState: StateFlow<WorkoutLiveIslandState> = combine(
+        sessionDraft,
+        timerController.state
+    ) { draft, timerState ->
+        resolveWorkoutLiveIslandState(
+            isWorkoutActive = draft.isWorkoutActive,
+            restTimerState = timerState
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = WorkoutLiveIslandState.Inactive
     )
 
     fun startWorkout(currentMillis: Long = currentEpochMillis()) {
@@ -380,6 +396,22 @@ class WorkoutViewModel(
     fun skipOrDismissRestTimer(onStopServiceTimer: () -> Unit = {}) {
         timerController.dismissOrSkip()
         onStopServiceTimer()
+    }
+
+    fun onStopRestTimerFromIsland(onStopRestTimerService: () -> Unit = {}) {
+        timerController.dismissOrSkip()
+        onStopRestTimerService()
+    }
+
+    fun onStopWorkoutFromIsland(
+        planName: String = uiState.value.todayPlanName,
+        onStopServiceTimer: () -> Unit = {}
+    ) {
+        if (!sessionDraft.value.isWorkoutActive) return
+        finishAndPersistWorkout(
+            planName = planName,
+            onStopServiceTimer = onStopServiceTimer
+        )
     }
 
     fun requestFinishWorkout() {

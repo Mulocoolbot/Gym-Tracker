@@ -32,8 +32,11 @@ class RestTimerService : Service() {
     private lateinit var alarmPlayer: GymAlarmPlayer
 
     private var tickerJob: Job? = null
+    private var alarmSilenceJob: Job? = null
     private var lastNotifiedSeconds: Int = -1
     private var lastSyncedEndTimeMillis: Long = 0L
+    private var isWorkoutOngoing: Boolean = false
+    private var ongoingLabel: String = WorkoutLiveIslandState.DEFAULT_ONGOING_LABEL
 
     override fun onCreate() {
         super.onCreate()
@@ -50,27 +53,88 @@ class RestTimerService : Service() {
             ACTION_START_TIMER -> {
                 val durationMillis = intent.getLongExtra(EXTRA_DURATION_MILLIS, 120_000L)
                 val label = intent.getStringExtra(EXTRA_TIMER_LABEL) ?: "Rest Timer"
+                isWorkoutOngoing = true
                 handleStartTimer(durationMillis, label)
             }
             ACTION_ADJUST_TIMER -> {
                 val deltaSeconds = intent.getIntExtra(EXTRA_DELTA_SECONDS, 0)
                 handleAdjustTimer(deltaSeconds)
             }
+            ACTION_SYNC_LIVE_ISLAND -> handleSyncLiveIsland(intent)
             ACTION_TRIGGER_ALARM -> handleTriggerAlarm()
-            ACTION_SKIP_TIMER, ACTION_DISMISS_ALARM -> handleStopAndReset()
+            ACTION_STOP_REST_TIMER, ACTION_DISMISS_ALARM -> handleStopRestTimerOnly()
+            ACTION_STOP_WORKOUT -> handleStopWorkoutAndReset()
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         tickerJob?.cancel()
+        alarmSilenceJob?.cancel()
         alarmPlayer.stopAlarm()
         serviceScope.cancel()
         super.onDestroy()
     }
 
+    private fun handleSyncLiveIsland(intent: Intent) {
+        when (intent.getStringExtra(EXTRA_ISLAND_MODE)) {
+            WorkoutLiveIslandState.MODE_INACTIVE -> handleStopWorkoutAndReset()
+            WorkoutLiveIslandState.MODE_WORKOUT_GOING -> {
+                isWorkoutOngoing = true
+                ongoingLabel = intent.getStringExtra(EXTRA_TIMER_LABEL)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: WorkoutLiveIslandState.DEFAULT_ONGOING_LABEL
+                tickerJob?.cancel()
+                cancelBackupAlarm()
+                lastSyncedEndTimeMillis = 0L
+                val notification = LiveUpdateNotificationHelper.buildWorkoutOngoingNotification(
+                    context = this,
+                    channelId = CHANNEL_ID_LIVE_ISLAND,
+                    label = ongoingLabel
+                )
+                promoteToForeground(notification)
+            }
+            WorkoutLiveIslandState.MODE_REST_TIMER -> {
+                isWorkoutOngoing = true
+                val endEpochMs = intent.getLongExtra(EXTRA_END_EPOCH_MS, 0L)
+                val totalSeconds = intent.getIntExtra(EXTRA_TOTAL_SECONDS, 0)
+                val now = System.currentTimeMillis()
+                val remainingMillis = (endEpochMs - now).coerceAtLeast(0L)
+                if (remainingMillis <= 0L) {
+                    handleStopRestTimerOnly()
+                    return
+                }
+                val currentState = controller.state.value
+                if (!currentState.isRunning || currentState.endTimeMillis != endEpochMs) {
+                    controller.startTimer(
+                        durationMillis = remainingMillis,
+                        label = currentState.label,
+                        currentMillis = now
+                    )
+                }
+                val activeState = controller.state.value
+                val resolvedTotal = maxOf(activeState.totalSeconds, totalSeconds)
+                lastNotifiedSeconds = activeState.remainingSeconds
+                lastSyncedEndTimeMillis = activeState.endTimeMillis
+
+                scheduleBackupAlarm(activeState.endTimeMillis)
+                val notification = LiveUpdateNotificationHelper.buildRestTimerNotification(
+                    context = this,
+                    channelId = CHANNEL_ID_LIVE_ISLAND,
+                    endEpochMs = activeState.endTimeMillis,
+                    remainingSeconds = activeState.remainingSeconds.coerceAtMost(resolvedTotal.coerceAtLeast(activeState.remainingSeconds))
+                )
+                promoteToForeground(notification)
+                if (tickerJob?.isActive != true) {
+                    startTicker()
+                }
+            }
+        }
+    }
+
     private fun handleStartTimer(durationMillis: Long, label: String) {
         tickerJob?.cancel()
+        alarmSilenceJob?.cancel()
         alarmPlayer.stopAlarm()
 
         val currentState = controller.state.value
@@ -87,9 +151,11 @@ class RestTimerService : Service() {
         lastSyncedEndTimeMillis = activeState.endTimeMillis
 
         scheduleBackupAlarm(activeState.endTimeMillis)
-        val notification = buildCountdownNotification(
-            remainingSeconds = activeState.remainingSeconds,
-            title = activeState.label
+        val notification = LiveUpdateNotificationHelper.buildRestTimerNotification(
+            context = this,
+            channelId = CHANNEL_ID_LIVE_ISLAND,
+            endEpochMs = activeState.endTimeMillis,
+            remainingSeconds = activeState.remainingSeconds
         )
         promoteToForeground(notification)
         startTicker()
@@ -114,9 +180,11 @@ class RestTimerService : Service() {
             scheduleBackupAlarm(updatedState.endTimeMillis)
             notificationManager.notify(
                 NOTIFICATION_ID,
-                buildCountdownNotification(
-                    remainingSeconds = updatedState.remainingSeconds,
-                    title = updatedState.label
+                LiveUpdateNotificationHelper.buildRestTimerNotification(
+                    context = this,
+                    channelId = CHANNEL_ID_LIVE_ISLAND,
+                    endEpochMs = updatedState.endTimeMillis,
+                    remainingSeconds = updatedState.remainingSeconds
                 )
             )
         }
@@ -136,9 +204,11 @@ class RestTimerService : Service() {
                     lastNotifiedSeconds = currentState.remainingSeconds
                     notificationManager.notify(
                         NOTIFICATION_ID,
-                        buildCountdownNotification(
-                            remainingSeconds = currentState.remainingSeconds,
-                            title = currentState.label
+                        LiveUpdateNotificationHelper.buildRestTimerNotification(
+                            context = this@RestTimerService,
+                            channelId = CHANNEL_ID_LIVE_ISLAND,
+                            endEpochMs = currentState.endTimeMillis,
+                            remainingSeconds = currentState.remainingSeconds
                         )
                     )
                 }
@@ -148,17 +218,57 @@ class RestTimerService : Service() {
 
     private fun handleTriggerAlarm() {
         tickerJob?.cancel()
+        alarmSilenceJob?.cancel()
         val currentState = controller.state.value
         if (currentState.isRunning) {
             controller.tick(currentMillis = currentState.endTimeMillis)
         }
         alarmPlayer.playAlarm()
-        val alarmNotification = buildFinishedNotification()
-        promoteToForeground(alarmNotification)
+
+        if (isWorkoutOngoing) {
+            lastSyncedEndTimeMillis = 0L
+            val ongoingNotification = LiveUpdateNotificationHelper.buildWorkoutOngoingNotification(
+                context = this,
+                channelId = CHANNEL_ID_LIVE_ISLAND,
+                label = ongoingLabel
+            )
+            promoteToForeground(ongoingNotification)
+            alarmSilenceJob = serviceScope.launch {
+                delay(3_000L)
+                alarmPlayer.stopAlarm()
+            }
+        } else {
+            val alarmNotification = buildFinishedNotification()
+            promoteToForeground(alarmNotification)
+        }
     }
 
-    private fun handleStopAndReset() {
+    private fun handleStopRestTimerOnly() {
         tickerJob?.cancel()
+        alarmSilenceJob?.cancel()
+        cancelBackupAlarm()
+        alarmPlayer.stopAlarm()
+        controller.dismissOrSkip()
+        lastSyncedEndTimeMillis = 0L
+
+        if (isWorkoutOngoing) {
+            val notification = LiveUpdateNotificationHelper.buildWorkoutOngoingNotification(
+                context = this,
+                channelId = CHANNEL_ID_LIVE_ISLAND,
+                label = ongoingLabel
+            )
+            promoteToForeground(notification)
+        } else {
+            notificationManager.cancel(NOTIFICATION_ID)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }
+
+    private fun handleStopWorkoutAndReset() {
+        isWorkoutOngoing = false
+        tickerJob?.cancel()
+        alarmSilenceJob?.cancel()
         cancelBackupAlarm()
         alarmPlayer.stopAlarm()
         controller.dismissOrSkip()
@@ -227,31 +337,6 @@ class RestTimerService : Service() {
         )
     }
 
-    private fun buildCountdownNotification(
-        remainingSeconds: Int,
-        title: String = "Rest Timer"
-    ): Notification {
-        val skipIntent = Intent(this, RestTimerService::class.java).apply {
-            action = ACTION_SKIP_TIMER
-        }
-        val skipPendingIntent = PendingIntent.getService(
-            this,
-            SKIP_REQUEST_CODE,
-            skipIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID_COUNTDOWN)
-            .setSmallIcon(R.drawable.ic_notification_timer)
-            .setContentTitle(title)
-            .setContentText(RestTimerController.formatMMSS(remainingSeconds))
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .addAction(0, "Skip", skipPendingIntent)
-            .build()
-    }
-
     private fun buildFinishedNotification(): Notification {
         val dismissIntent = Intent(this, RestTimerService::class.java).apply {
             action = ACTION_DISMISS_ALARM
@@ -265,23 +350,25 @@ class RestTimerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID_ALARM)
             .setSmallIcon(R.drawable.ic_notification_timer)
+            .setColor(0xFFD4FF00.toInt())
             .setContentTitle("Rest Finished")
             .setContentText("00:00")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
-            .addAction(0, "Dismiss", dismissPendingIntent)
+            .addAction(R.drawable.ic_island_stop, "Dismiss", dismissPendingIntent)
             .build()
     }
 
     private fun createNotificationChannels() {
-        val countdownChannel = NotificationChannel(
-            CHANNEL_ID_COUNTDOWN,
-            "Rest Timer Countdown",
-            NotificationManager.IMPORTANCE_LOW
+        val liveIslandChannel = NotificationChannel(
+            CHANNEL_ID_LIVE_ISLAND,
+            "Workout Live Status",
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             setSound(null, null)
             enableVibration(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
 
         val alarmChannel = NotificationChannel(
@@ -291,27 +378,56 @@ class RestTimerService : Service() {
         ).apply {
             setSound(null, null)
             enableVibration(true)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
 
-        notificationManager.createNotificationChannels(listOf(countdownChannel, alarmChannel))
+        notificationManager.createNotificationChannels(listOf(liveIslandChannel, alarmChannel))
     }
 
     companion object {
         const val ACTION_START_TIMER = "com.mulocoolbot.gymtracker.action.START_TIMER"
         const val ACTION_ADJUST_TIMER = "com.mulocoolbot.gymtracker.action.ADJUST_TIMER"
-        const val ACTION_SKIP_TIMER = "com.mulocoolbot.gymtracker.action.SKIP_TIMER"
         const val ACTION_DISMISS_ALARM = "com.mulocoolbot.gymtracker.action.DISMISS_ALARM"
         const val ACTION_TRIGGER_ALARM = "com.mulocoolbot.gymtracker.action.TRIGGER_ALARM"
+        const val ACTION_SYNC_LIVE_ISLAND = "com.mulocoolbot.gymtracker.action.SYNC_LIVE_ISLAND"
+        const val ACTION_STOP_REST_TIMER = LiveIslandActionReceiver.ACTION_STOP_REST_TIMER
+        const val ACTION_STOP_WORKOUT = LiveIslandActionReceiver.ACTION_STOP_WORKOUT
+
         const val EXTRA_DURATION_MILLIS = "com.mulocoolbot.gymtracker.extra.DURATION_MILLIS"
         const val EXTRA_TIMER_LABEL = "com.mulocoolbot.gymtracker.extra.TIMER_LABEL"
         const val EXTRA_DELTA_SECONDS = "com.mulocoolbot.gymtracker.extra.DELTA_SECONDS"
+        const val EXTRA_ISLAND_MODE = "com.mulocoolbot.gymtracker.extra.ISLAND_MODE"
+        const val EXTRA_END_EPOCH_MS = "com.mulocoolbot.gymtracker.extra.END_EPOCH_MS"
+        const val EXTRA_TOTAL_SECONDS = "com.mulocoolbot.gymtracker.extra.TOTAL_SECONDS"
 
-        private const val CHANNEL_ID_COUNTDOWN = "rest_timer_countdown_channel"
+        private const val CHANNEL_ID_LIVE_ISLAND = "mfit_workout_live_status_channel"
         private const val CHANNEL_ID_ALARM = "rest_timer_alarm_channel"
         private const val NOTIFICATION_ID = 1001
         private const val ALARM_REQUEST_CODE = 2001
-        private const val SKIP_REQUEST_CODE = 2002
         private const val DISMISS_REQUEST_CODE = 2003
+
+        fun syncLiveIslandState(context: Context, state: WorkoutLiveIslandState) {
+            when (state) {
+                is WorkoutLiveIslandState.Inactive -> stopWorkoutLiveIsland(context)
+                is WorkoutLiveIslandState.WorkoutOngoing -> {
+                    val intent = Intent(context, RestTimerService::class.java).apply {
+                        action = ACTION_SYNC_LIVE_ISLAND
+                        putExtra(EXTRA_ISLAND_MODE, WorkoutLiveIslandState.MODE_WORKOUT_GOING)
+                        putExtra(EXTRA_TIMER_LABEL, state.label)
+                    }
+                    startForegroundCompat(context, intent)
+                }
+                is WorkoutLiveIslandState.RestTimerActive -> {
+                    val intent = Intent(context, RestTimerService::class.java).apply {
+                        action = ACTION_SYNC_LIVE_ISLAND
+                        putExtra(EXTRA_ISLAND_MODE, WorkoutLiveIslandState.MODE_REST_TIMER)
+                        putExtra(EXTRA_END_EPOCH_MS, state.endEpochMs)
+                        putExtra(EXTRA_TOTAL_SECONDS, state.totalSeconds)
+                    }
+                    startForegroundCompat(context, intent)
+                }
+            }
+        }
 
         fun startRestTimer(
             context: Context,
@@ -323,7 +439,7 @@ class RestTimerService : Service() {
                 putExtra(EXTRA_DURATION_MILLIS, durationMillis)
                 putExtra(EXTRA_TIMER_LABEL, label)
             }
-            ContextCompat.startForegroundService(context, intent)
+            startForegroundCompat(context, intent)
         }
 
         fun adjustRestTimer(context: Context, deltaSeconds: Int) {
@@ -335,22 +451,29 @@ class RestTimerService : Service() {
         }
 
         fun stopRestTimer(context: Context) {
+            stopRestTimerOnly(context)
+        }
+
+        fun stopRestTimerOnly(context: Context) {
             val intent = Intent(context, RestTimerService::class.java).apply {
-                action = ACTION_DISMISS_ALARM
+                action = ACTION_STOP_REST_TIMER
             }
             runCatching { context.startService(intent) }
         }
 
-        fun startTimer(context: Context, durationMillis: Long) {
-            startRestTimer(context, durationMillis)
+        fun stopWorkoutLiveIsland(context: Context) {
+            val intent = Intent(context, RestTimerService::class.java).apply {
+                action = ACTION_STOP_WORKOUT
+            }
+            runCatching { context.startService(intent) }
         }
 
-        fun skipTimer(context: Context) {
-            stopRestTimer(context)
-        }
-
-        fun dismissAlarm(context: Context) {
-            stopRestTimer(context)
+        private fun startForegroundCompat(context: Context, intent: Intent) {
+            runCatching {
+                ContextCompat.startForegroundService(context, intent)
+            }.onFailure {
+                runCatching { context.startService(intent) }
+            }
         }
     }
 }
